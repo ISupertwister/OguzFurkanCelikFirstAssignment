@@ -133,17 +133,6 @@
   <ItemGroup>
     <ClInclude Include="App\Window.h" />
     <ClInclude Include="Core\DXDevice.h" />
-    <ClInclude Include="DX12Editor.h" />
-    <ClInclude Include="framework.h" />
-    <ClInclude Include="Resource.h" />
-    <ClInclude Include="targetver.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="DX12Editor.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="DX12Editor.ico" />
-    <Image Include="small.ico" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp" />
