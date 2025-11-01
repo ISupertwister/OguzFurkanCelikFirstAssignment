@@ -3,11 +3,10 @@
 #include "DXDevice.h"
 #include "DXRenderer.h"
 #include <sstream>
-    
 
-int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
+int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
+{
     Window window(L"DX12 Editor", 1600, 900);
-
     if (!window.Create()) return -1;
 
     DXDevice dx;
@@ -22,6 +21,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         return -3;
     }
 
+    // Show adapter name (for debugging)
     std::wstringstream ss;
     ss << L"DX12 Editor  —  Adapter: " << dx.AdapterDesc();
     SetWindowTextW(window.GetHWND(), ss.str().c_str());
@@ -38,4 +38,5 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     }
     return 0;
 }
+
 
