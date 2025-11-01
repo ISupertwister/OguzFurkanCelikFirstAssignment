@@ -36,10 +36,16 @@ LRESULT CALLBACK Window::WndProcThunk(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 LRESULT Window::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept {
     switch (msg) {
     case WM_SIZE:
+        // Update cached size
         m_width = LOWORD(lParam);
         m_height = HIWORD(lParam);
-        // ÝLERDE: SwapChain::OnResize(m_width, m_height)
+
+        // Call user callback unless minimized
+        if (m_onResize && wParam != SIZE_MINIMIZED) {
+            m_onResize(static_cast<UINT>(m_width), static_cast<UINT>(m_height));
+        }
         return 0;
+
     case WM_CLOSE:
         DestroyWindow(hWnd);
         return 0;

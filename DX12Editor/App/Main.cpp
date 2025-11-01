@@ -21,7 +21,12 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         return -3;
     }
 
-    // Show adapter name (for debugging)
+    // live resize hook
+    window.SetResizeCallback([&](UINT w, UINT h) {
+        renderer.Resize(w, h);
+        });
+
+    // Optional: show adapter name
     std::wstringstream ss;
     ss << L"DX12 Editor  —  Adapter: " << dx.AdapterDesc();
     SetWindowTextW(window.GetHWND(), ss.str().c_str());
@@ -38,5 +43,6 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     }
     return 0;
 }
+
 
 
