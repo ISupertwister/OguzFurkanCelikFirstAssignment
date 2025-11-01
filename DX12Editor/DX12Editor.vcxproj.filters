@@ -44,7 +44,7 @@
     <ClCompile Include="Core\DXDevice.cpp">
       <Filter>Source Files\src\Core</Filter>
     </ClCompile>
-    <ClCompile Include="DXRenderer.cpp">
+    <ClCompile Include="Core\DXRenderer.cpp">
       <Filter>Source Files\src\Core</Filter>
     </ClCompile>
   </ItemGroup>

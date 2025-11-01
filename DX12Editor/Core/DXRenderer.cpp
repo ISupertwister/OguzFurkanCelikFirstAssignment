@@ -1,5 +1,5 @@
 #include "DXRenderer.h"
-#include "Core/DXDevice.h"
+#include "DXDevice.h"
 #include <cassert>
 
 using Microsoft::WRL::ComPtr;

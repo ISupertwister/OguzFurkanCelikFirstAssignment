@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "Window.h"
-#include "../Core/DXDevice.h"
-#include "../Core/DXRenderer.h"
+#include "DXDevice.h"
+#include "DXRenderer.h"
 #include <sstream>
     
 
