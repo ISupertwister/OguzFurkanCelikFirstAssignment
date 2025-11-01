@@ -33,6 +33,9 @@
     <ClInclude Include="Core\DXDevice.h">
       <Filter>Source Files\src\Core</Filter>
     </ClInclude>
+    <ClInclude Include="FrameTimer.h">
+      <Filter>Source Files\src\Core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp">

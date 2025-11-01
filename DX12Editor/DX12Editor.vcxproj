@@ -134,6 +134,7 @@
     <ClInclude Include="App\Window.h" />
     <ClInclude Include="Core\DXDevice.h" />
     <ClInclude Include="DXRenderer.h" />
+    <ClInclude Include="FrameTimer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp" />
