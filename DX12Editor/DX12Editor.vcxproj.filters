@@ -22,6 +22,9 @@
     <Filter Include="Source Files\src\Core">
       <UniqueIdentifier>{5fcd939e-b931-4ebf-b23b-88a473ed3c3e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\src\Shaders">
+      <UniqueIdentifier>{f7685f61-0e84-4a43-8a2b-2a771f29d7a6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App\Window.h">
@@ -50,5 +53,13 @@
     <ClCompile Include="Core\DXRenderer.cpp">
       <Filter>Source Files\src\Core</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="ColorVS.hlsl">
+      <Filter>Source Files\src\Shaders</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ColorPS.hlsl">
+      <Filter>Source Files\src\Shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
