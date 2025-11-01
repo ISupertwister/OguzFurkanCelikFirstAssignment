@@ -27,6 +27,9 @@
     <ClInclude Include="App\Window.h">
       <Filter>Source Files\src\App</Filter>
     </ClInclude>
+    <ClInclude Include="DXRenderer.h">
+      <Filter>Source Files\src\Core</Filter>
+    </ClInclude>
     <ClInclude Include="Core\DXDevice.h">
       <Filter>Source Files\src\Core</Filter>
     </ClInclude>
@@ -39,6 +42,9 @@
       <Filter>Source Files\src\App</Filter>
     </ClCompile>
     <ClCompile Include="Core\DXDevice.cpp">
+      <Filter>Source Files\src\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="DXRenderer.cpp">
       <Filter>Source Files\src\Core</Filter>
     </ClCompile>
   </ItemGroup>

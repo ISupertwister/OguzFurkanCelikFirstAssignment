@@ -133,11 +133,13 @@
   <ItemGroup>
     <ClInclude Include="App\Window.h" />
     <ClInclude Include="Core\DXDevice.h" />
+    <ClInclude Include="DXRenderer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp" />
     <ClCompile Include="App\Window.cpp" />
     <ClCompile Include="Core\DXDevice.cpp" />
+    <ClCompile Include="DXRenderer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
