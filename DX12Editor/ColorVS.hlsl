@@ -1,4 +1,4 @@
-// Simple vertex shader: passes position & color to pixel shader
+// Simple vertex shader: transforms vertex and passes color
 struct VSInput
 {
     float3 position : POSITION;
@@ -18,3 +18,4 @@ PSInput main(VSInput input)
     output.color = input.color;
     return output;
 }
+
