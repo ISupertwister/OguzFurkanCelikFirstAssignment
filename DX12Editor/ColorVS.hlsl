@@ -1,3 +1,7 @@
+cbuffer CbMvp : register(b0) // new: bound from CPU as CBV at b0
+{
+    float4x4 gMVP;
+}
 // Simple vertex shader: transforms vertex and passes color
 struct VSInput
 {
