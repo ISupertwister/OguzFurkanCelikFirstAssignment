@@ -4,6 +4,8 @@
 #include <dxgi1_6.h>
 #include <vector>
 #include <memory>
+#include <DirectXMath.h>
+using namespace DirectX;
 
 class DXDevice;
 
@@ -56,6 +58,33 @@ private:
     DXGI_FORMAT m_backbufferFormat{ DXGI_FORMAT_R8G8B8A8_UNORM };
 
     bool    m_firstFrame{ true }; // first frame starts from COMMON -> RT
+    // Vertex for our colored triangle
+struct Vertex {
+    XMFLOAT3 position;
+    XMFLOAT3 color;
+    };
+
+private:
+    // Pipeline pieces
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> m_rootSig;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> m_pso;
+
+    // Geometry
+    Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer; // we use an UPLOAD heap for now
+    D3D12_VERTEX_BUFFER_VIEW               m_vbView{};
+
+    // Viewport / Scissor
+    D3D12_VIEWPORT m_viewport{};
+    D3D12_RECT     m_scissor{};
+
+private:
+    // Setup helpers
+    bool CreateRootSignature() noexcept;
+    bool CreatePipelineState() noexcept;
+    bool CreateTriangleVB() noexcept;
+
+    // Small file loader for .cso
+    bool LoadFileBinary(const wchar_t* path, std::vector<uint8_t>& data) noexcept;
 };
 
 

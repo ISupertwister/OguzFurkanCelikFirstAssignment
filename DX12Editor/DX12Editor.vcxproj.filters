@@ -30,13 +30,13 @@
     <ClInclude Include="App\Window.h">
       <Filter>Source Files\src\App</Filter>
     </ClInclude>
-    <ClInclude Include="DXRenderer.h">
-      <Filter>Source Files\src\Core</Filter>
-    </ClInclude>
     <ClInclude Include="Core\DXDevice.h">
       <Filter>Source Files\src\Core</Filter>
     </ClInclude>
-    <ClInclude Include="FrameTimer.h">
+    <ClInclude Include="Core\DXRenderer.h">
+      <Filter>Source Files\src\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\FrameTimer.h">
       <Filter>Source Files\src\Core</Filter>
     </ClInclude>
   </ItemGroup>

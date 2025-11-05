@@ -133,8 +133,8 @@
   <ItemGroup>
     <ClInclude Include="App\Window.h" />
     <ClInclude Include="Core\DXDevice.h" />
-    <ClInclude Include="DXRenderer.h" />
-    <ClInclude Include="FrameTimer.h" />
+    <ClInclude Include="Core\DXRenderer.h" />
+    <ClInclude Include="Core\FrameTimer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp" />
@@ -149,16 +149,14 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">f not exist "$(IntDir)Shaders" mkdir "$(IntDir)Shaders"
-copy /Y "%(FullPath)" "$(IntDir)Shaders\%(Filename)%(Extension)"
-"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe" -T ps_6_0 -E main -Fo "$(IntDir)Shaders\%(Filename).cso" "$(IntDir)Shaders\%(Filename)%(Extension)"</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">f not exist "$(IntDir)Shaders" mkdir "$(IntDir)Shaders"
-copy /Y "%(FullPath)" "$(IntDir)Shaders\%(Filename)%(Extension)"
-"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe" -T ps_6_0 -E main -Fo "$(IntDir)Shaders\%(Filename).cso" "$(IntDir)Shaders\%(Filename)%(Extension)"</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)Shaders\%(Filename).cso
-;%(Outputs)</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)Shaders\%(Filename).cso
-;%(Outputs)</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">if not exist "$(OutDir)Shaders" mkdir "$(OutDir)Shaders"
+copy /Y "%(FullPath)" "$(OutDir)Shaders\%(Filename)%(Extension)"
+"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe" -T ps_6_0 -E main -Fo "$(OutDir)Shaders\%(Filename).cso" "$(OutDir)Shaders\%(Filename)%(Extension)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">if not exist "$(OutDir)Shaders" mkdir "$(OutDir)Shaders"
+copy /Y "%(FullPath)" "$(OutDir)Shaders\%(Filename)%(Extension)"
+"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe" -T ps_6_0 -E main -Fo "$(OutDir)Shaders\%(Filename).cso" "$(OutDir)Shaders\%(Filename)%(Extension)"</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shaders\ColorPS.cso;%(Outputs)</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shaders\ColorPS.cso;%(Outputs)</Outputs>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </CustomBuild>
@@ -168,18 +166,18 @@ copy /Y "%(FullPath)" "$(IntDir)Shaders\%(Filename)%(Extension)"
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">if not exist "$(IntDir)Shaders" mkdir "$(IntDir)Shaders"
-copy /Y "%(FullPath)" "$(IntDir)Shaders\%(Filename)%(Extension)"
-"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe" -T vs_6_0 -E main -Fo "$(IntDir)Shaders\%(Filename).cso" "$(IntDir)Shaders\%(Filename)%(Extension)"
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">if not exist "$(OutDir)Shaders" mkdir "$(OutDir)Shaders"
+copy /Y "%(FullPath)" "$(OutDir)Shaders\%(Filename)%(Extension)"
+"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe" -T vs_6_0 -E main -Fo "$(OutDir)Shaders\%(Filename).cso" "$(OutDir)Shaders\%(Filename)%(Extension)"
 
 </Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">if not exist "$(IntDir)Shaders" mkdir "$(IntDir)Shaders"
-copy /Y "%(FullPath)" "$(IntDir)Shaders\%(Filename)%(Extension)"
-"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe" -T vs_6_0 -E main -Fo "$(IntDir)Shaders\%(Filename).cso" "$(IntDir)Shaders\%(Filename)%(Extension)"
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">if not exist "$(OutDir)Shaders" mkdir "$(OutDir)Shaders"
+copy /Y "%(FullPath)" "$(OutDir)Shaders\%(Filename)%(Extension)"
+"C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\dxc.exe" -T vs_6_0 -E main -Fo "$(OutDir)Shaders\%(Filename).cso" "$(OutDir)Shaders\%(Filename)%(Extension)"
 
 </Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)Shaders\%(Filename).cso;%(Outputs)</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)Shaders\%(Filename).cso;%(Outputs)</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Shaders\ColorVS.cso;%(Outputs)</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)Shaders\ColorVS.cso;%(Outputs)</Outputs>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </CustomBuild>

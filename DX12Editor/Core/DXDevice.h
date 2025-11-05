@@ -12,20 +12,17 @@ public:
     DXDevice(const DXDevice&) = delete;
     DXDevice& operator=(const DXDevice&) = delete;
 
-    // Initialize D3D12 device and DXGI factory/adapter
     bool Initialize(bool enableDebugLayer) noexcept;
 
-    // Accessors (const-correct)
     ID3D12Device* GetDevice()  const noexcept { return m_device.Get(); }
     IDXGIFactory6* GetFactory() const noexcept { return m_factory.Get(); }
     IDXGIAdapter1* GetAdapter() const noexcept { return m_adapter.Get(); }
-    bool           IsWarp()     const noexcept { return m_isWarp; }
-    std::wstring   AdapterDesc() const noexcept { return m_adapterDesc; }
+    bool            IsWarp()     const noexcept { return m_isWarp; }
+    std::wstring    AdapterDesc() const noexcept { return m_adapterDesc; }
 
 private:
-    // Split responsibilities into small helpers
     bool CreateFactory(bool enableDebugLayer) noexcept;
-    bool PickAdapter() noexcept;    // choose HW adapter or fallback to WARP
+    bool PickAdapter() noexcept;
     bool CreateDevice() noexcept;
 
 private:
@@ -36,3 +33,4 @@ private:
     bool m_isWarp{ false };
     std::wstring m_adapterDesc;
 };
+

@@ -1,7 +1,7 @@
 #pragma once
 #include <windows.h>
 #include <string>
-#include <functional> // NEW
+#include <functional>
 
 class Window {
 public:
@@ -16,8 +16,8 @@ public:
     int  Width()  const noexcept { return m_width; }
     int  Height() const noexcept { return m_height; }
 
-    using ResizeCallback = std::function<void(UINT, UINT)>;
-    void SetResizeCallback(ResizeCallback cb) noexcept { m_onResize = std::move(cb); }
+    // Simple resize callback
+    void SetResizeCallback(std::function<void(UINT, UINT)> cb) { m_onResize = std::move(cb); }
 
 private:
     static LRESULT CALLBACK WndProcSetup(HWND, UINT, WPARAM, LPARAM) noexcept;
@@ -30,7 +30,7 @@ private:
     int m_height{ 0 };
     HWND m_hWnd{ nullptr };
     HINSTANCE m_hInstance{ nullptr };
-
-    ResizeCallback m_onResize{};
+    std::function<void(UINT, UINT)> m_onResize;
 };
+
 
