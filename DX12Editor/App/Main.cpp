@@ -1,10 +1,9 @@
 #include <windows.h>
 #include "Window.h"
-#include "DXDevice.h"
-#include "DXRenderer.h"
-#include "FrameTimer.h"
+#include "../Core/DXDevice.h"
+#include "../Core/DXRenderer.h"
+#include "../Core/FrameTimer.h"
 #include <sstream>
-#include <iomanip>   // NEW: fixed, setprecision
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
 {
@@ -23,15 +22,17 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         return -3;
     }
 
-    // Live resize hook
+    // Live resize hook -> let renderer recreate size-dependent resources
     window.SetResizeCallback([&](UINT w, UINT h) {
         renderer.Resize(w, h);
         });
 
-    // Base title with adapter name (kept constant)
-    std::wstringstream baseTitle;
-    baseTitle << L"DX12 Editor  —  Adapter: " << dx.AdapterDesc();
+    // Put adapter name in the title once
+    std::wstringstream base;
+    base << L"DX12 Editor  —  Adapter: " << dx.AdapterDesc();
+    SetWindowTextW(window.GetHWND(), base.str().c_str());
 
+    // Optional: FPS/ms in title
     FrameTimer timer;
     double fps = 0.0;
     std::wstringstream title;
@@ -43,16 +44,15 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
             DispatchMessage(&msg);
         }
         else {
-            // Tick timer and render a frame
             timer.Tick();
             renderer.Render();
 
-            // Update window title every 0.5s with FPS and ms
+            // Update window title every ~0.5s
             if (timer.SampleFps(0.5, fps)) {
                 const double ms = (fps > 0.0) ? (1000.0 / fps) : 0.0;
                 title.str(L"");
                 title.clear();
-                title << baseTitle.str()
+                title << base.str()
                     << L"  |  FPS: " << std::fixed << std::setprecision(0) << fps
                     << L"  (" << std::setprecision(2) << ms << L" ms)";
                 SetWindowTextW(window.GetHWND(), title.str().c_str());
@@ -61,6 +61,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     }
     return 0;
 }
+
 
 
 
