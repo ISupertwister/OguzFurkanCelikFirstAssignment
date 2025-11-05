@@ -193,22 +193,37 @@ bool DXRenderer::CreateRenderTargets() noexcept {
 }
 
 bool DXRenderer::CreateRootSignature() noexcept {
+    // 1 x CBV range (b0..b0)
+    D3D12_DESCRIPTOR_RANGE range{};
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+    range.NumDescriptors = 1;
+    range.BaseShaderRegister = 0; // b0
+    range.RegisterSpace = 0;
+    range.OffsetInDescriptorsFromTableStart = 0;
+
+    // Root parameter: a single descriptor table that holds our CBV
+    D3D12_ROOT_DESCRIPTOR_TABLE table{};
+    table.NumDescriptorRanges = 1;
+    table.pDescriptorRanges = &range;
+
+    D3D12_ROOT_PARAMETER param{};
+    param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    param.DescriptorTable = table;
+    param.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // used in VS
+
     D3D12_ROOT_SIGNATURE_DESC rs{};
-    rs.NumParameters = 0;
-    rs.pParameters = nullptr;
+    rs.NumParameters = 1;
+    rs.pParameters = &param;
     rs.NumStaticSamplers = 0;
     rs.pStaticSamplers = nullptr;
     rs.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-    ComPtr<ID3DBlob> blob, err;
+    Microsoft::WRL::ComPtr<ID3DBlob> blob, err;
     if (FAILED(D3D12SerializeRootSignature(&rs, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &err)))
         return false;
 
-    if (FAILED(m_device->GetDevice()->CreateRootSignature(
-        0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig))))
-        return false;
-
-    return true;
+    return SUCCEEDED(m_device->GetDevice()->CreateRootSignature(
+        0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig)));
 }
 
 bool DXRenderer::CreatePipelineState() noexcept {
