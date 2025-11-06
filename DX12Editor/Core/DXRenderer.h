@@ -1,33 +1,24 @@
 #pragma once
-#include <wrl.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include <wrl.h>
 #include <DirectXMath.h>
 #include <vector>
-#include <memory>
+#include <cstdint>
 
-class DXDevice;
+class DXDevice; // forward decl
 
 class DXRenderer {
 public:
     DXRenderer() noexcept = default;
     ~DXRenderer() = default;
 
-    DXRenderer(const DXRenderer&) = delete;
-    DXRenderer& operator=(const DXRenderer&) = delete;
-
     bool Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height) noexcept;
     void Render() noexcept;
     void Resize(UINT width, UINT height) noexcept;
 
 private:
-    // Simple vertex: position + color
-    struct Vertex {
-        DirectX::XMFLOAT3 position;
-        DirectX::XMFLOAT3 color;
-    };
-
-    // Setup helpers
+    // ---- helpers ----
     bool CreateCommandQueue() noexcept;
     bool CreateSwapChain(HWND hwnd, UINT width, UINT height) noexcept;
     bool CreateRTVDescriptorHeap() noexcept;
@@ -37,53 +28,73 @@ private:
     bool CreatePipelineState() noexcept;
     bool CreateTriangleVB() noexcept;
 
+    bool CreateConstantBuffer() noexcept;      // NEW
+
     bool LoadFileBinary(const wchar_t* path, std::vector<uint8_t>& data) noexcept;
     void WaitForGpu() noexcept;
 
 private:
+    // Simple vertex: position + color
+    struct Vertex {
+        DirectX::XMFLOAT3 position;
+        DirectX::XMFLOAT3 color;
+    };
+
+    // ---- Constant Buffer (MVP) ----
+    // Must be 256-byte aligned for CBV
+    struct alignas(256) CbMvp {
+        DirectX::XMFLOAT4X4 mvp;
+    };
+
+private:
+    // device / factory provided via DXDevice
     DXDevice* m_device{ nullptr };
 
-    // Present path
-    Microsoft::WRL::ComPtr<ID3D12CommandQueue>     m_commandQueue;
-    Microsoft::WRL::ComPtr<IDXGISwapChain4>        m_swapChain;
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>   m_rtvHeap;
-    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> m_renderTargets;
+    // command submission
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue>  m_commandQueue;
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> m_cmdAlloc;
+    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> m_cmdList;
+
+    // swap-chain & RTVs
+    Microsoft::WRL::ComPtr<IDXGISwapChain4> m_swapChain;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     UINT m_rtvDescriptorSize{ 0 };
-    UINT m_frameIndex{ 0 };
-    static constexpr UINT kBufferCount = 2;
-    DXGI_FORMAT m_backbufferFormat{ DXGI_FORMAT_R8G8B8A8_UNORM };
+    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> m_renderTargets;
 
-    // Commands
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator>     m_cmdAlloc;
-    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>  m_cmdList;
-
-    // Sync
+    // sync
     Microsoft::WRL::ComPtr<ID3D12Fence> m_fence;
-    UINT64 m_fenceValue{ 0 };
-    HANDLE m_fenceEvent{ nullptr };
-    bool   m_firstFrame{ true };
+    HANDLE  m_fenceEvent{ nullptr };
+    UINT64  m_fenceValue{ 0 };
+    UINT    m_frameIndex{ 0 };
+    bool    m_firstFrame{ true };
 
-    // Pipeline for triangle
+    // pipeline
     Microsoft::WRL::ComPtr<ID3D12RootSignature> m_rootSig;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> m_pso;
-    Microsoft::WRL::ComPtr<ID3D12Resource>      m_vertexBuffer;
-    D3D12_VERTEX_BUFFER_VIEW                    m_vbView{};
 
+    // geometry
+    Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer;
+    D3D12_VERTEX_BUFFER_VIEW m_vbView{};
+
+    // CBV resources (NEW)
+    Microsoft::WRL::ComPtr<ID3D12Resource>       m_cbUpload;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_cbvHeap;
+    UINT     m_cbSize{ 0 };
+    uint8_t* m_cbMapped{ nullptr };
+    float    m_time{ 0.0f }; // simple rotation
+
+    // viewport
     D3D12_VIEWPORT m_viewport{};
     D3D12_RECT     m_scissor{};
 
-    // Backbuffer size
+    // backbuffer info
+    static constexpr UINT        kBufferCount = 2;
+    DXGI_FORMAT                  m_backbufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+    // size
     UINT m_width{ 0 };
     UINT m_height{ 0 };
-
-    struct alignas(256) CbMvp { DirectX::XMFLOAT4X4 mvp; }; // 256B alignment is required
-
-    Microsoft::WRL::ComPtr<ID3D12Resource>      m_cbUpload;   // CPU-writable buffer
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_cbvHeap;   // shader-visible heap for CBV
-    UINT     m_cbSize{ 0 };
-    uint8_t* m_cbMapped{ nullptr };
-
-    float m_time{ 0.0f }; // simple rotation driver
 };
+
 
 
