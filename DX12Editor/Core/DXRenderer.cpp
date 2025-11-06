@@ -1,9 +1,10 @@
-﻿#include <filesystem>
-#include "DXRenderer.h"
-#include "DXDevice.h"
+﻿#include <windows.h>
+#include <filesystem>
 #include <cassert>
 #include <cstdio>   // file load
 #include <cstring>  // memcpy
+#include "DXRenderer.h"
+#include "DXDevice.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -11,14 +12,15 @@ using namespace DirectX;
 bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height) noexcept {
     assert(hwnd && device);
 
+    m_hwnd = hwnd;      // store for optional title updates
     m_device = device;
     m_width = width;
     m_height = height;
 
-    if (!CreateCommandQueue())            return false;
+    if (!CreateCommandQueue())                 return false;
     if (!CreateSwapChain(hwnd, width, height)) return false;
-    if (!CreateRTVDescriptorHeap())       return false;
-    if (!CreateRenderTargets())           return false;
+    if (!CreateRTVDescriptorHeap())            return false;
+    if (!CreateRenderTargets())                return false;
 
     if (FAILED(m_device->GetDevice()->CreateCommandAllocator(
         D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_cmdAlloc))))
@@ -27,7 +29,6 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     if (FAILED(m_device->GetDevice()->CreateCommandList(
         0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_cmdAlloc.Get(), nullptr, IID_PPV_ARGS(&m_cmdList))))
         return false;
-
     m_cmdList->Close(); // start closed
 
     if (FAILED(m_device->GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))))
@@ -45,13 +46,18 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     // Triangle pipeline
     if (!CreateRootSignature())   return false;
     if (!CreatePipelineState())   return false;
-    if (!CreateConstantBuffer())  return false;
+    if (!CreateConstantBuffer())  return false;   // MVP constant buffer
     if (!CreateTriangleVB())      return false;
 
     return true;
 }
 
 void DXRenderer::Render() noexcept {
+    // --- time ---
+    m_timer.Tick();
+    double dt = m_timer.Delta();
+    if (dt > 0.1) dt = 0.1; // avoid huge jumps after a pause
+
     // Reset allocator & cmd list
     m_cmdAlloc->Reset();
     m_cmdList->Reset(m_cmdAlloc.Get(), nullptr);
@@ -70,18 +76,42 @@ void DXRenderer::Render() noexcept {
 
     // RTV handle
     D3D12_CPU_DESCRIPTOR_HANDLE rtvStart = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
-    D3D12_CPU_DESCRIPTOR_HANDLE rtv = { rtvStart.ptr + SIZE_T(bb) * SIZE_T(m_rtvDescriptorSize) };
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv{ rtvStart.ptr + SIZE_T(bb) * SIZE_T(m_rtvDescriptorSize) };
 
     // Clear
     m_cmdList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
     const float clearColor[4] = { 0.08f, 0.10f, 0.20f, 1.0f };
     m_cmdList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
 
+    // --- Update MVP (use real dt) ---
+    {
+        const float angularSpeed = 1.2f;      // radians per second
+        m_time += float(dt) * angularSpeed;   // FPS-independent animation
+
+        float aspect = (m_height == 0) ? 1.0f : float(m_width) / float(m_height);
+        XMMATRIX M = XMMatrixRotationY(m_time);
+        XMMATRIX V = XMMatrixLookAtLH(XMVectorSet(0, 0, -3, 0), XMVectorZero(), XMVectorSet(0, 1, 0, 0));
+        XMMATRIX P = XMMatrixPerspectiveFovLH(XM_PIDIV4, aspect, 0.1f, 100.f);
+
+        // HLSL expects column-major by default; transpose on CPU for safety
+        XMMATRIX MVP = XMMatrixTranspose(M * V * P);
+
+        CbMvp cb{};
+        XMStoreFloat4x4(&cb.mvp, MVP);
+        std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
+    }
+
+    // --- Bind pipeline + CBV heap ---
+    ID3D12DescriptorHeap* heaps[] = { m_cbvHeap.Get() };
+    m_cmdList->SetDescriptorHeaps(1, heaps);
+
     // Draw triangle
     m_cmdList->RSSetViewports(1, &m_viewport);
     m_cmdList->RSSetScissorRects(1, &m_scissor);
     m_cmdList->SetGraphicsRootSignature(m_rootSig.Get());
     m_cmdList->SetPipelineState(m_pso.Get());
+    m_cmdList->SetGraphicsRootDescriptorTable(
+        0, m_cbvHeap->GetGPUDescriptorHandleForHeapStart()); // root param 0 = CBV table
     m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_cmdList->IASetVertexBuffers(0, 1, &m_vbView);
     m_cmdList->DrawInstanced(3, 1, 0, 0);
@@ -108,6 +138,17 @@ void DXRenderer::Render() noexcept {
     }
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+    // --- Optional: update window title with FPS every 0.5s ---
+    if (m_hwnd) {
+        double fps;
+        if (m_timer.SampleFps(0.5, fps)) {
+            wchar_t title[256];
+            swprintf_s(title, L"DX12 Editor  |  FPS: %.0f (%.2f ms)",
+                fps, fps > 0.0 ? 1000.0 / fps : 0.0);
+            SetWindowTextW(m_hwnd, title);
+        }
+    }
 }
 
 void DXRenderer::Resize(UINT width, UINT height) noexcept {
@@ -194,7 +235,7 @@ bool DXRenderer::CreateRenderTargets() noexcept {
 }
 
 bool DXRenderer::CreateRootSignature() noexcept {
-    // 1 x CBV range (b0..b0)
+    // Descriptor range for a single CBV at b0
     D3D12_DESCRIPTOR_RANGE range{};
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
     range.NumDescriptors = 1;
@@ -202,7 +243,7 @@ bool DXRenderer::CreateRootSignature() noexcept {
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
 
-    // Root parameter: a single descriptor table that holds our CBV
+    // Root parameter: descriptor table
     D3D12_ROOT_DESCRIPTOR_TABLE table{};
     table.NumDescriptorRanges = 1;
     table.pDescriptorRanges = &range;
@@ -210,7 +251,7 @@ bool DXRenderer::CreateRootSignature() noexcept {
     D3D12_ROOT_PARAMETER param{};
     param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     param.DescriptorTable = table;
-    param.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX; // used in VS
+    param.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
     D3D12_ROOT_SIGNATURE_DESC rs{};
     rs.NumParameters = 1;
@@ -219,7 +260,7 @@ bool DXRenderer::CreateRootSignature() noexcept {
     rs.pStaticSamplers = nullptr;
     rs.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-    Microsoft::WRL::ComPtr<ID3DBlob> blob, err;
+    ComPtr<ID3DBlob> blob, err;
     if (FAILED(D3D12SerializeRootSignature(&rs, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &err)))
         return false;
 
@@ -235,6 +276,7 @@ bool DXRenderer::CreatePipelineState() noexcept {
         p = p.parent_path() / L"Shaders" / file;  // <exe>\Shaders\file
         return p.wstring();
         };
+
     // Load compiled shaders from ./Shaders
     std::vector<uint8_t> vs, ps;
     if (!LoadFileBinary(shaderPath(L"ColorVS.cso").c_str(), vs)) return false;
@@ -245,8 +287,8 @@ bool DXRenderer::CreatePipelineState() noexcept {
 
     // Input layout
     D3D12_INPUT_ELEMENT_DESC layout[] = {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,                           D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)sizeof(XMFLOAT3),      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,                      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 
     // Defaults without d3dx12 helpers
@@ -300,15 +342,11 @@ bool DXRenderer::CreateTriangleVB() noexcept {
     };
     const UINT vbSize = sizeof(verts);
 
-    D3D12_HEAP_PROPERTIES heap{};
-    heap.Type = D3D12_HEAP_TYPE_UPLOAD;
-
-    D3D12_RESOURCE_DESC buf{};
+    D3D12_HEAP_PROPERTIES heap{}; heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+    D3D12_RESOURCE_DESC   buf{};
     buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    buf.Width = vbSize;
-    buf.Height = 1;
-    buf.DepthOrArraySize = 1;
-    buf.MipLevels = 1;
+    buf.Width = vbSize; buf.Height = 1;
+    buf.DepthOrArraySize = 1; buf.MipLevels = 1;
     buf.SampleDesc = { 1,0 };
     buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
@@ -320,7 +358,7 @@ bool DXRenderer::CreateTriangleVB() noexcept {
     void* mapped = nullptr;
     D3D12_RANGE noRead{ 0,0 };
     m_vertexBuffer->Map(0, &noRead, &mapped);
-    memcpy(mapped, verts, vbSize);
+    std::memcpy(mapped, verts, vbSize);
     m_vertexBuffer->Unmap(0, nullptr);
 
     m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
@@ -329,38 +367,18 @@ bool DXRenderer::CreateTriangleVB() noexcept {
     return true;
 }
 
-bool DXRenderer::LoadFileBinary(const wchar_t* path, std::vector<uint8_t>& data) noexcept {
-    FILE* f = nullptr;
-    _wfopen_s(&f, path, L"rb");
-    if (!f) return false;
-    fseek(f, 0, SEEK_END);
-    long sz = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    data.resize(size_t(sz));
-    if (sz > 0) fread(data.data(), 1, size_t(sz), f);
-    fclose(f);
-    return true;
-}
-
-void DXRenderer::WaitForGpu() noexcept {
-    if (!m_commandQueue || !m_fence) return;
-    const UINT64 fenceToWait = ++m_fenceValue;
-    m_commandQueue->Signal(m_fence.Get(), fenceToWait);
-    if (m_fence->GetCompletedValue() < fenceToWait) {
-        m_fence->SetEventOnCompletion(fenceToWait, m_fenceEvent);
-        WaitForSingleObject(m_fenceEvent, INFINITE);
-    }
-}
-bool DXRenderer::CreateConstantBuffer() noexcept
-{
+bool DXRenderer::CreateConstantBuffer() noexcept {
     // 256-byte aligned size
     m_cbSize = (sizeof(CbMvp) + 255) & ~255u;
 
     // Upload heap buffer
     D3D12_HEAP_PROPERTIES heap{}; heap.Type = D3D12_HEAP_TYPE_UPLOAD;
-    D3D12_RESOURCE_DESC   buf{};  buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    buf.Width = m_cbSize; buf.Height = 1; buf.DepthOrArraySize = 1; buf.MipLevels = 1;
-    buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR; buf.SampleDesc = { 1,0 };
+    D3D12_RESOURCE_DESC   buf{};
+    buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    buf.Width = m_cbSize; buf.Height = 1;
+    buf.DepthOrArraySize = 1; buf.MipLevels = 1;
+    buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    buf.SampleDesc = { 1,0 };
 
     if (FAILED(m_device->GetDevice()->CreateCommittedResource(
         &heap, D3D12_HEAP_FLAG_NONE, &buf,
@@ -389,6 +407,30 @@ bool DXRenderer::CreateConstantBuffer() noexcept
 
     return true;
 }
+
+bool DXRenderer::LoadFileBinary(const wchar_t* path, std::vector<uint8_t>& data) noexcept {
+    FILE* f = nullptr;
+    _wfopen_s(&f, path, L"rb");
+    if (!f) return false;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    data.resize(size_t(sz));
+    if (sz > 0) fread(data.data(), 1, size_t(sz), f);
+    fclose(f);
+    return true;
+}
+
+void DXRenderer::WaitForGpu() noexcept {
+    if (!m_commandQueue || !m_fence) return;
+    const UINT64 fenceToWait = ++m_fenceValue;
+    m_commandQueue->Signal(m_fence.Get(), fenceToWait);
+    if (m_fence->GetCompletedValue() < fenceToWait) {
+        m_fence->SetEventOnCompletion(fenceToWait, m_fenceEvent);
+        WaitForSingleObject(m_fenceEvent, INFINITE);
+    }
+}
+
 
 
 
