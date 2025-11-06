@@ -1,14 +1,13 @@
-cbuffer CbMvp : register(b0) // new: bound from CPU as CBV at b0
+cbuffer CbMvp : register(b0)
 {
     float4x4 gMVP;
 }
-// Simple vertex shader: transforms vertex and passes color
+
 struct VSInput
 {
     float3 position : POSITION;
     float3 color : COLOR;
 };
-
 struct PSInput
 {
     float4 position : SV_POSITION;
@@ -17,9 +16,9 @@ struct PSInput
 
 PSInput main(VSInput input)
 {
-    PSInput output;
-    output.position = float4(input.position, 1.0f);
-    output.color = input.color;
-    return output;
+    PSInput o;
+    o.position = mul(gMVP, float4(input.position, 1.0f));
+    o.color = input.color;
+    return o;
 }
 
