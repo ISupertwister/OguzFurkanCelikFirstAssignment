@@ -1,8 +1,8 @@
 ﻿#include <windows.h>
 #include <filesystem>
 #include <cassert>
-#include <cstdio>   // file load
-#include <cstring>  // memcpy
+#include <cstdio>
+#include <cstring>
 #include "DXRenderer.h"
 #include "DXDevice.h"
 
@@ -12,7 +12,7 @@ using namespace DirectX;
 bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height) noexcept {
     assert(hwnd && device);
 
-    m_hwnd = hwnd;      // store for optional title updates
+    m_hwnd = hwnd;
     m_device = device;
     m_width = width;
     m_height = height;
@@ -21,6 +21,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     if (!CreateSwapChain(hwnd, width, height)) return false;
     if (!CreateRTVDescriptorHeap())            return false;
     if (!CreateRenderTargets())                return false;
+    if (!CreateDepthResources())               return false;   // NEW: depth
 
     if (FAILED(m_device->GetDevice()->CreateCommandAllocator(
         D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_cmdAlloc))))
@@ -29,7 +30,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     if (FAILED(m_device->GetDevice()->CreateCommandList(
         0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_cmdAlloc.Get(), nullptr, IID_PPV_ARGS(&m_cmdList))))
         return false;
-    m_cmdList->Close(); // start closed
+    m_cmdList->Close();
 
     if (FAILED(m_device->GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))))
         return false;
@@ -43,20 +44,21 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     m_viewport = { 0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f };
     m_scissor = { 0, 0, int(width), int(height) };
 
-    // Triangle pipeline
     if (!CreateRootSignature())   return false;
     if (!CreatePipelineState())   return false;
-    if (!CreateConstantBuffer())  return false;   // MVP constant buffer
+    if (!CreateConstantBuffer())  return false;
     if (!CreateTriangleVB())      return false;
 
     return true;
 }
 
 void DXRenderer::Render() noexcept {
-    // --- time ---
+    // time
     m_timer.Tick();
     double dt = m_timer.Delta();
-    if (dt > 0.1) dt = 0.1; // avoid huge jumps after a pause
+    if (dt > 0.1) dt = 0.1; // clamp spikes
+    const float angularSpeed = 1.2f;
+    m_time += float(dt) * angularSpeed;
 
     // Reset allocator & cmd list
     m_cmdAlloc->Reset();
@@ -78,30 +80,25 @@ void DXRenderer::Render() noexcept {
     D3D12_CPU_DESCRIPTOR_HANDLE rtvStart = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
     D3D12_CPU_DESCRIPTOR_HANDLE rtv{ rtvStart.ptr + SIZE_T(bb) * SIZE_T(m_rtvDescriptorSize) };
 
+    // DSV handle (NEW)
+    D3D12_CPU_DESCRIPTOR_HANDLE dsv = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+
     // Clear
-    m_cmdList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+    m_cmdList->OMSetRenderTargets(1, &rtv, FALSE, &dsv); // NEW: bind DSV too
     const float clearColor[4] = { 0.08f, 0.10f, 0.20f, 1.0f };
     m_cmdList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+    m_cmdList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr); // NEW
 
-    // --- Update MVP (use real dt) ---
-    {
-        const float angularSpeed = 1.2f;      // radians per second
-        m_time += float(dt) * angularSpeed;   // FPS-independent animation
+    // --- Update MVP (CBV) ---
+    float aspect = (m_height == 0) ? 1.0f : float(m_width) / float(m_height);
+    XMMATRIX M = XMMatrixRotationY(m_time);
+    XMMATRIX V = XMMatrixLookAtLH(XMVectorSet(0, 0, -3, 0), XMVectorZero(), XMVectorSet(0, 1, 0, 0));
+    XMMATRIX P = XMMatrixPerspectiveFovLH(XM_PIDIV4, aspect, 0.1f, 100.f);
+    XMMATRIX MVP = XMMatrixTranspose(M * V * P);
+    CbMvp cb{}; XMStoreFloat4x4(&cb.mvp, MVP);
+    std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
 
-        float aspect = (m_height == 0) ? 1.0f : float(m_width) / float(m_height);
-        XMMATRIX M = XMMatrixRotationY(m_time);
-        XMMATRIX V = XMMatrixLookAtLH(XMVectorSet(0, 0, -3, 0), XMVectorZero(), XMVectorSet(0, 1, 0, 0));
-        XMMATRIX P = XMMatrixPerspectiveFovLH(XM_PIDIV4, aspect, 0.1f, 100.f);
-
-        // HLSL expects column-major by default; transpose on CPU for safety
-        XMMATRIX MVP = XMMatrixTranspose(M * V * P);
-
-        CbMvp cb{};
-        XMStoreFloat4x4(&cb.mvp, MVP);
-        std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
-    }
-
-    // --- Bind pipeline + CBV heap ---
+    // Bind pipeline + CBV heap
     ID3D12DescriptorHeap* heaps[] = { m_cbvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, heaps);
 
@@ -111,7 +108,7 @@ void DXRenderer::Render() noexcept {
     m_cmdList->SetGraphicsRootSignature(m_rootSig.Get());
     m_cmdList->SetPipelineState(m_pso.Get());
     m_cmdList->SetGraphicsRootDescriptorTable(
-        0, m_cbvHeap->GetGPUDescriptorHandleForHeapStart()); // root param 0 = CBV table
+        0, m_cbvHeap->GetGPUDescriptorHandleForHeapStart());
     m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_cmdList->IASetVertexBuffers(0, 1, &m_vbView);
     m_cmdList->DrawInstanced(3, 1, 0, 0);
@@ -136,10 +133,9 @@ void DXRenderer::Render() noexcept {
         m_fence->SetEventOnCompletion(fenceToWait, m_fenceEvent);
         WaitForSingleObject(m_fenceEvent, INFINITE);
     }
-
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-    // --- Optional: update window title with FPS every 0.5s ---
+    // Optional: FPS title
     if (m_hwnd) {
         double fps;
         if (m_timer.SampleFps(0.5, fps)) {
@@ -153,11 +149,12 @@ void DXRenderer::Render() noexcept {
 
 void DXRenderer::Resize(UINT width, UINT height) noexcept {
     if (!m_swapChain) return;
-    if (width == 0 || height == 0) return; // minimized
+    if (width == 0 || height == 0) return;
 
     WaitForGpu();
 
     for (auto& rt : m_renderTargets) rt.Reset();
+    m_depth.Reset(); // NEW: release depth
 
     m_width = width;
     m_height = height;
@@ -166,6 +163,7 @@ void DXRenderer::Resize(UINT width, UINT height) noexcept {
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
     CreateRenderTargets();
+    CreateDepthResources(); // NEW: recreate
 
     m_viewport = { 0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f };
     m_scissor = { 0, 0, int(width), int(height) };
@@ -234,16 +232,61 @@ bool DXRenderer::CreateRenderTargets() noexcept {
     return true;
 }
 
+bool DXRenderer::CreateDepthResources() noexcept {
+    // Describe depth texture
+    D3D12_RESOURCE_DESC desc{};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    desc.Alignment = 0;
+    desc.Width = m_width;
+    desc.Height = m_height;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+    desc.Format = m_depthFormat; // DXGI_FORMAT_D32_FLOAT
+    desc.SampleDesc = { 1, 0 };
+    desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+    // Clear value for fast clears
+    D3D12_CLEAR_VALUE clear{};
+    clear.Format = m_depthFormat;
+    clear.DepthStencil.Depth = 1.0f;
+    clear.DepthStencil.Stencil = 0;
+
+    D3D12_HEAP_PROPERTIES heap{}; heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+    if (FAILED(m_device->GetDevice()->CreateCommittedResource(
+        &heap, D3D12_HEAP_FLAG_NONE, &desc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE, // initial
+        &clear, IID_PPV_ARGS(&m_depth))))
+        return false;
+
+    // Create DSV heap (one descriptor)
+    D3D12_DESCRIPTOR_HEAP_DESC dh{};
+    dh.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+    dh.NumDescriptors = 1;
+    dh.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // not shader-visible
+    if (FAILED(m_device->GetDevice()->CreateDescriptorHeap(&dh, IID_PPV_ARGS(&m_dsvHeap))))
+        return false;
+
+    // Create DSV view
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsv{};
+    dsv.Format = m_depthFormat;
+    dsv.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsv.Flags = D3D12_DSV_FLAG_NONE;
+    m_device->GetDevice()->CreateDepthStencilView(m_depth.Get(), &dsv, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+
+    return true;
+}
+
 bool DXRenderer::CreateRootSignature() noexcept {
-    // Descriptor range for a single CBV at b0
+    // CBV descriptor table at b0
     D3D12_DESCRIPTOR_RANGE range{};
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
     range.NumDescriptors = 1;
-    range.BaseShaderRegister = 0; // b0
+    range.BaseShaderRegister = 0;
     range.RegisterSpace = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
 
-    // Root parameter: descriptor table
     D3D12_ROOT_DESCRIPTOR_TABLE table{};
     table.NumDescriptorRanges = 1;
     table.pDescriptorRanges = &range;
@@ -273,11 +316,10 @@ bool DXRenderer::CreatePipelineState() noexcept {
         wchar_t exe[MAX_PATH];
         GetModuleFileNameW(nullptr, exe, MAX_PATH);
         std::filesystem::path p(exe);
-        p = p.parent_path() / L"Shaders" / file;  // <exe>\Shaders\file
+        p = p.parent_path() / L"Shaders" / file;
         return p.wstring();
         };
 
-    // Load compiled shaders from ./Shaders
     std::vector<uint8_t> vs, ps;
     if (!LoadFileBinary(shaderPath(L"ColorVS.cso").c_str(), vs)) return false;
     if (!LoadFileBinary(shaderPath(L"ColorPS.cso").c_str(), ps)) return false;
@@ -285,13 +327,11 @@ bool DXRenderer::CreatePipelineState() noexcept {
     D3D12_SHADER_BYTECODE VS{ vs.data(), (UINT)vs.size() };
     D3D12_SHADER_BYTECODE PS{ ps.data(), (UINT)ps.size() };
 
-    // Input layout
     D3D12_INPUT_ELEMENT_DESC layout[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,                      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)sizeof(XMFLOAT3), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 
-    // Defaults without d3dx12 helpers
     D3D12_RASTERIZER_DESC rast{};
     rast.FillMode = D3D12_FILL_MODE_SOLID;
     rast.CullMode = D3D12_CULL_MODE_BACK;
@@ -313,6 +353,12 @@ bool DXRenderer::CreatePipelineState() noexcept {
     rt0.LogicOpEnable = FALSE;
     rt0.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
+    D3D12_DEPTH_STENCIL_DESC dsd{}; // NEW
+    dsd.DepthEnable = TRUE;
+    dsd.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+    dsd.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+    dsd.StencilEnable = FALSE;
+
     D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
     pso.pRootSignature = m_rootSig.Get();
     pso.VS = VS;
@@ -321,8 +367,7 @@ bool DXRenderer::CreatePipelineState() noexcept {
     pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     pso.RasterizerState = rast;
     pso.BlendState = blend;
-    pso.DepthStencilState.DepthEnable = FALSE;
-    pso.DepthStencilState.StencilEnable = FALSE;
+    pso.DepthStencilState = dsd; // NEW
     pso.SampleMask = UINT_MAX;
     pso.NumRenderTargets = 1;
     pso.RTVFormats[0] = m_backbufferFormat;
@@ -368,10 +413,8 @@ bool DXRenderer::CreateTriangleVB() noexcept {
 }
 
 bool DXRenderer::CreateConstantBuffer() noexcept {
-    // 256-byte aligned size
     m_cbSize = (sizeof(CbMvp) + 255) & ~255u;
 
-    // Upload heap buffer
     D3D12_HEAP_PROPERTIES heap{}; heap.Type = D3D12_HEAP_TYPE_UPLOAD;
     D3D12_RESOURCE_DESC   buf{};
     buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -385,12 +428,10 @@ bool DXRenderer::CreateConstantBuffer() noexcept {
         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_cbUpload))))
         return false;
 
-    // Persistent map (write every frame)
     D3D12_RANGE noRead{ 0,0 };
     if (FAILED(m_cbUpload->Map(0, &noRead, reinterpret_cast<void**>(&m_cbMapped))))
         return false;
 
-    // Shader-visible CBV heap (1 descriptor)
     D3D12_DESCRIPTOR_HEAP_DESC h{};
     h.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     h.NumDescriptors = 1;
@@ -398,7 +439,6 @@ bool DXRenderer::CreateConstantBuffer() noexcept {
     if (FAILED(m_device->GetDevice()->CreateDescriptorHeap(&h, IID_PPV_ARGS(&m_cbvHeap))))
         return false;
 
-    // Create the CBV (points to upload buffer)
     D3D12_CONSTANT_BUFFER_VIEW_DESC cbv{};
     cbv.BufferLocation = m_cbUpload->GetGPUVirtualAddress();
     cbv.SizeInBytes = m_cbSize;
@@ -430,6 +470,7 @@ void DXRenderer::WaitForGpu() noexcept {
         WaitForSingleObject(m_fenceEvent, INFINITE);
     }
 }
+
 
 
 

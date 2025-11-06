@@ -6,7 +6,7 @@
 #include <vector>
 #include <cstdint>
 #include <windows.h>
-#include "FrameTimer.h"   // <-- for real dt + FPS
+#include "FrameTimer.h"
 
 class DXDevice; // forward decl
 
@@ -29,7 +29,10 @@ private:
     bool CreateRootSignature() noexcept;
     bool CreatePipelineState() noexcept;
     bool CreateTriangleVB() noexcept;
-    bool CreateConstantBuffer() noexcept;      // NEW
+    bool CreateConstantBuffer() noexcept;
+
+    // depth resources
+    bool CreateDepthResources() noexcept;
 
     bool LoadFileBinary(const wchar_t* path, std::vector<uint8_t>& data) noexcept;
     void WaitForGpu() noexcept;
@@ -41,8 +44,7 @@ private:
         DirectX::XMFLOAT3 color;
     };
 
-    // ---- Constant Buffer (MVP) ----
-    // Must be 256-byte aligned for CBV
+    // Constant Buffer (MVP) -- must be 256B aligned
     struct alignas(256) CbMvp {
         DirectX::XMFLOAT4X4 mvp;
     };
@@ -51,19 +53,24 @@ private:
     // window handle (for optional title updates)
     HWND      m_hwnd{ nullptr };
 
-    // device / factory provided via DXDevice
+    // device / factory via DXDevice
     DXDevice* m_device{ nullptr };
 
     // command submission
-    Microsoft::WRL::ComPtr<ID3D12CommandQueue>       m_commandQueue;
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator>   m_cmdAlloc;
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue>        m_commandQueue;
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator>    m_cmdAlloc;
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> m_cmdList;
 
     // swap-chain & RTVs
-    Microsoft::WRL::ComPtr<IDXGISwapChain4> m_swapChain;
+    Microsoft::WRL::ComPtr<IDXGISwapChain4>      m_swapChain;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
-    UINT m_rtvDescriptorSize{ 0 };
+    UINT                                          m_rtvDescriptorSize{ 0 };
     std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> m_renderTargets;
+
+    // DSV
+    Microsoft::WRL::ComPtr<ID3D12Resource>       m_depth;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
+    DXGI_FORMAT                                   m_depthFormat = DXGI_FORMAT_D32_FLOAT;
 
     // sync
     Microsoft::WRL::ComPtr<ID3D12Fence> m_fence;
@@ -80,15 +87,15 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW               m_vbView{};
 
-    // CBV resources (for MVP)
+    // CBV (MVP)
     Microsoft::WRL::ComPtr<ID3D12Resource>       m_cbUpload;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_cbvHeap;
     UINT     m_cbSize{ 0 };
     uint8_t* m_cbMapped{ nullptr };
 
     // timing
-    FrameTimer m_timer;         // real dt + fps sampling
-    float      m_time{ 0.0f };  // accumulated rotation (radians)
+    FrameTimer m_timer;
+    float      m_time{ 0.0f };  // radians
 
     // viewport/scissor
     D3D12_VIEWPORT m_viewport{};
@@ -102,6 +109,7 @@ private:
     UINT m_width{ 0 };
     UINT m_height{ 0 };
 };
+
 
 
 
