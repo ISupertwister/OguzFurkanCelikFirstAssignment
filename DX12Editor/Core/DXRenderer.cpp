@@ -21,7 +21,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     if (!CreateSwapChain(hwnd, width, height)) return false;
     if (!CreateRTVDescriptorHeap())            return false;
     if (!CreateRenderTargets())                return false;
-    if (!CreateDepthResources())               return false;   // NEW: depth
+    if (!CreateDepthResources())               return false;   //depth
 
     if (FAILED(m_device->GetDevice()->CreateCommandAllocator(
         D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_cmdAlloc))))
@@ -80,14 +80,14 @@ void DXRenderer::Render() noexcept {
     D3D12_CPU_DESCRIPTOR_HANDLE rtvStart = m_rtvHeap->GetCPUDescriptorHandleForHeapStart();
     D3D12_CPU_DESCRIPTOR_HANDLE rtv{ rtvStart.ptr + SIZE_T(bb) * SIZE_T(m_rtvDescriptorSize) };
 
-    // DSV handle (NEW)
+    // DSV handle
     D3D12_CPU_DESCRIPTOR_HANDLE dsv = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
 
     // Clear
-    m_cmdList->OMSetRenderTargets(1, &rtv, FALSE, &dsv); // NEW: bind DSV too
+    m_cmdList->OMSetRenderTargets(1, &rtv, FALSE, &dsv); //bind DSV too
     const float clearColor[4] = { 0.08f, 0.10f, 0.20f, 1.0f };
     m_cmdList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
-    m_cmdList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr); // NEW
+    m_cmdList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
     // --- Update MVP (CBV) ---
     float aspect = (m_height == 0) ? 1.0f : float(m_width) / float(m_height);
@@ -154,7 +154,7 @@ void DXRenderer::Resize(UINT width, UINT height) noexcept {
     WaitForGpu();
 
     for (auto& rt : m_renderTargets) rt.Reset();
-    m_depth.Reset(); // NEW: release depth
+    m_depth.Reset(); //release depth
 
     m_width = width;
     m_height = height;
@@ -163,7 +163,7 @@ void DXRenderer::Resize(UINT width, UINT height) noexcept {
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
     CreateRenderTargets();
-    CreateDepthResources(); // NEW: recreate
+    CreateDepthResources(); //recreate
 
     m_viewport = { 0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f };
     m_scissor = { 0, 0, int(width), int(height) };
@@ -353,7 +353,7 @@ bool DXRenderer::CreatePipelineState() noexcept {
     rt0.LogicOpEnable = FALSE;
     rt0.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
-    D3D12_DEPTH_STENCIL_DESC dsd{}; // NEW
+    D3D12_DEPTH_STENCIL_DESC dsd{}; 
     dsd.DepthEnable = TRUE;
     dsd.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
     dsd.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
@@ -367,10 +367,11 @@ bool DXRenderer::CreatePipelineState() noexcept {
     pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     pso.RasterizerState = rast;
     pso.BlendState = blend;
-    pso.DepthStencilState = dsd; // NEW
+    pso.DepthStencilState = dsd;
     pso.SampleMask = UINT_MAX;
     pso.NumRenderTargets = 1;
     pso.RTVFormats[0] = m_backbufferFormat;
+    pso.DSVFormat = m_depthFormat;
     pso.SampleDesc = { 1, 0 };
 
     if (FAILED(m_device->GetDevice()->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&m_pso))))
