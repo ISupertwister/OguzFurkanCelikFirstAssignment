@@ -45,6 +45,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     // Triangle pipeline
     if (!CreateRootSignature())   return false;
     if (!CreatePipelineState())   return false;
+    if (!CreateConstantBuffer())  return false;
     if (!CreateTriangleVB())      return false;
 
     return true;
@@ -349,6 +350,44 @@ void DXRenderer::WaitForGpu() noexcept {
         m_fence->SetEventOnCompletion(fenceToWait, m_fenceEvent);
         WaitForSingleObject(m_fenceEvent, INFINITE);
     }
+}
+bool DXRenderer::CreateConstantBuffer() noexcept
+{
+    // 256-byte aligned size
+    m_cbSize = (sizeof(CbMvp) + 255) & ~255u;
+
+    // Upload heap buffer
+    D3D12_HEAP_PROPERTIES heap{}; heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+    D3D12_RESOURCE_DESC   buf{};  buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    buf.Width = m_cbSize; buf.Height = 1; buf.DepthOrArraySize = 1; buf.MipLevels = 1;
+    buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR; buf.SampleDesc = { 1,0 };
+
+    if (FAILED(m_device->GetDevice()->CreateCommittedResource(
+        &heap, D3D12_HEAP_FLAG_NONE, &buf,
+        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_cbUpload))))
+        return false;
+
+    // Persistent map (write every frame)
+    D3D12_RANGE noRead{ 0,0 };
+    if (FAILED(m_cbUpload->Map(0, &noRead, reinterpret_cast<void**>(&m_cbMapped))))
+        return false;
+
+    // Shader-visible CBV heap (1 descriptor)
+    D3D12_DESCRIPTOR_HEAP_DESC h{};
+    h.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    h.NumDescriptors = 1;
+    h.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    if (FAILED(m_device->GetDevice()->CreateDescriptorHeap(&h, IID_PPV_ARGS(&m_cbvHeap))))
+        return false;
+
+    // Create the CBV (points to upload buffer)
+    D3D12_CONSTANT_BUFFER_VIEW_DESC cbv{};
+    cbv.BufferLocation = m_cbUpload->GetGPUVirtualAddress();
+    cbv.SizeInBytes = m_cbSize;
+    m_device->GetDevice()->CreateConstantBufferView(
+        &cbv, m_cbvHeap->GetCPUDescriptorHandleForHeapStart());
+
+    return true;
 }
 
 
