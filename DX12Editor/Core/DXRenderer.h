@@ -5,6 +5,8 @@
 #include <DirectXMath.h>
 #include <vector>
 #include <cstdint>
+#include <windows.h>
+#include "FrameTimer.h"   // <-- for real dt + FPS
 
 class DXDevice; // forward decl
 
@@ -27,7 +29,6 @@ private:
     bool CreateRootSignature() noexcept;
     bool CreatePipelineState() noexcept;
     bool CreateTriangleVB() noexcept;
-
     bool CreateConstantBuffer() noexcept;      // NEW
 
     bool LoadFileBinary(const wchar_t* path, std::vector<uint8_t>& data) noexcept;
@@ -47,12 +48,15 @@ private:
     };
 
 private:
+    // window handle (for optional title updates)
+    HWND      m_hwnd{ nullptr };
+
     // device / factory provided via DXDevice
     DXDevice* m_device{ nullptr };
 
     // command submission
-    Microsoft::WRL::ComPtr<ID3D12CommandQueue>  m_commandQueue;
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> m_cmdAlloc;
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue>       m_commandQueue;
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator>   m_cmdAlloc;
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> m_cmdList;
 
     // swap-chain & RTVs
@@ -74,27 +78,31 @@ private:
 
     // geometry
     Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer;
-    D3D12_VERTEX_BUFFER_VIEW m_vbView{};
+    D3D12_VERTEX_BUFFER_VIEW               m_vbView{};
 
-    // CBV resources (NEW)
+    // CBV resources (for MVP)
     Microsoft::WRL::ComPtr<ID3D12Resource>       m_cbUpload;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_cbvHeap;
     UINT     m_cbSize{ 0 };
     uint8_t* m_cbMapped{ nullptr };
-    float    m_time{ 0.0f }; // simple rotation
 
-    // viewport
+    // timing
+    FrameTimer m_timer;         // real dt + fps sampling
+    float      m_time{ 0.0f };  // accumulated rotation (radians)
+
+    // viewport/scissor
     D3D12_VIEWPORT m_viewport{};
     D3D12_RECT     m_scissor{};
 
     // backbuffer info
-    static constexpr UINT        kBufferCount = 2;
-    DXGI_FORMAT                  m_backbufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    static constexpr UINT kBufferCount = 2;
+    DXGI_FORMAT           m_backbufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     // size
     UINT m_width{ 0 };
     UINT m_height{ 0 };
 };
+
 
 
 
