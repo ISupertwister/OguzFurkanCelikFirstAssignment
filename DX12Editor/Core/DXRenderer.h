@@ -8,7 +8,7 @@
 #include <windows.h>
 #include "FrameTimer.h"
 
-class DXDevice; // forward decl
+class DXDevice; // forward declaration
 
 class DXRenderer {
 public:
@@ -83,7 +83,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12RootSignature> m_rootSig;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> m_pso;
 
-    // geometry
+    // geometry (single triangle)
     Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW               m_vbView{};
 
@@ -109,6 +109,7 @@ private:
     UINT m_width{ 0 };
     UINT m_height{ 0 };
 };
+
 
 
 
