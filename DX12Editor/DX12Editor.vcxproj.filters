@@ -55,11 +55,11 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="ColorVS.hlsl">
+    <FxCompile Include="ColorVS.hlsl">
       <Filter>Source Files\src\Shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="ColorPS.hlsl">
+    </FxCompile>
+    <FxCompile Include="ColorPS.hlsl">
       <Filter>Source Files\src\Shaders</Filter>
-    </CustomBuild>
+    </FxCompile>
   </ItemGroup>
 </Project>
