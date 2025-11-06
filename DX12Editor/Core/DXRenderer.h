@@ -75,6 +75,15 @@ private:
     // Backbuffer size
     UINT m_width{ 0 };
     UINT m_height{ 0 };
+
+    struct alignas(256) CbMvp { DirectX::XMFLOAT4X4 mvp; }; // 256B alignment is required
+
+    Microsoft::WRL::ComPtr<ID3D12Resource>      m_cbUpload;   // CPU-writable buffer
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_cbvHeap;   // shader-visible heap for CBV
+    UINT     m_cbSize{ 0 };
+    uint8_t* m_cbMapped{ nullptr };
+
+    float m_time{ 0.0f }; // simple rotation driver
 };
 
 
