@@ -42,6 +42,9 @@
     <ClInclude Include="d3dx12.h">
       <Filter>Source Files\src\Core</Filter>
     </ClInclude>
+    <ClInclude Include="DXMesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp">
@@ -54,6 +57,9 @@
       <Filter>Source Files\src\Core</Filter>
     </ClCompile>
     <ClCompile Include="Core\DXRenderer.cpp">
+      <Filter>Source Files\src\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="DXMesh.cpp">
       <Filter>Source Files\src\Core</Filter>
     </ClCompile>
   </ItemGroup>

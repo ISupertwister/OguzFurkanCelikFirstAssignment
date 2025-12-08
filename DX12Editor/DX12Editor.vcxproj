@@ -142,12 +142,14 @@
     <ClInclude Include="Core\DXRenderer.h" />
     <ClInclude Include="Core\FrameTimer.h" />
     <ClInclude Include="d3dx12.h" />
+    <ClInclude Include="DXMesh.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp" />
     <ClCompile Include="App\Window.cpp" />
     <ClCompile Include="Core\DXDevice.cpp" />
     <ClCompile Include="Core\DXRenderer.cpp" />
+    <ClCompile Include="DXMesh.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="ColorPS.hlsl">
