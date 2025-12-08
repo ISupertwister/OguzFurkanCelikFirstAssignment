@@ -61,14 +61,12 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     m_viewport = { 0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f };
     m_scissor = { 0, 0, int(width), int(height) };
 
-    // Graphics pipeline
-    if (!CreateRootSignature())   return false;
-    if (!CreatePipelineState())   return false;
-    if (!CreateConstantBuffer())  return false;
-    if (!CreateTriangleVB())      return false;
-
-    // Procedural checkerboard texture + SRV
-    if (!CreateCheckerTextureSRV()) return false;
+    // Graphics pipeline and resources
+    if (!CreateRootSignature())      return false;
+    if (!CreatePipelineState())      return false;
+    if (!CreateConstantBuffer())     return false;
+    if (!CreateTriangleVB())         return false;
+    if (!CreateCheckerTextureSRV())  return false;
 
     return true;
 }
@@ -115,7 +113,7 @@ void DXRenderer::Render() noexcept {
     m_cmdList->ClearDepthStencilView(
         dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    // Bind descriptor heaps (CBV + SRV in a single heap)
+    // Bind descriptor heap (CBV + SRV in a single heap)
     ID3D12DescriptorHeap* heaps[] = { m_cbvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, heaps);
 
@@ -159,7 +157,7 @@ void DXRenderer::Render() noexcept {
     };
     m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv); // SRV @ index 1
 
-    // Draw
+    // Draw (6 vertices = 2 triangles = textured quad)
     m_cmdList->DrawInstanced(6, 1, 0, 0);
 
     // Back to PRESENT
@@ -405,7 +403,9 @@ bool DXRenderer::CreateRootSignature() noexcept {
     // Static sampler s0
     D3D12_STATIC_SAMPLER_DESC samp{};
     samp.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    samp.AddressU = samp.AddressV = samp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     samp.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
     samp.MaxLOD = D3D12_FLOAT32_MAX;
     samp.ShaderRegister = 0; // s0
@@ -514,18 +514,16 @@ bool DXRenderer::CreatePipelineState() noexcept {
 }
 
 // --------------------------------------------------------
-// Geometry
+// Geometry (textured quad as 2 triangles)
 // --------------------------------------------------------
 bool DXRenderer::CreateTriangleVB() noexcept {
-    // Note: actually creates a textured quad (2 triangles, 6 vertices).
-
     const Vertex verts[6] = {
-        // 1. triangle (top-left, bottom-right, bottom-left)
+        // 1st triangle
         { XMFLOAT3(-0.5f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.0f, 0.0f) }, // top-left
         { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(1.0f, 1.0f) }, // bottom-right
         { XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(0,0,1), XMFLOAT2(0.0f, 1.0f) }, // bottom-left
 
-        // 2. triangle (top-left, top-right, bottom-right)
+        // 2nd triangle
         { XMFLOAT3(-0.5f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.0f, 0.0f) }, // top-left
         { XMFLOAT3(0.5f,  0.5f, 0.0f), XMFLOAT3(0,1,1), XMFLOAT2(1.0f, 0.0f) }, // top-right
         { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(1.0f, 1.0f) }, // bottom-right
@@ -637,14 +635,16 @@ bool DXRenderer::CreateCheckerTextureSRV() noexcept {
     std::vector<uint32_t> pixels(W * H);
     for (UINT y = 0; y < H; ++y) {
         for (UINT x = 0; x < W; ++x) {
-            bool c = ((x / 32) ^ (y / 32)) & 1;
+            bool   c = ((x / 32) ^ (y / 32)) & 1;
             uint8_t v = c ? 220 : 40;
             uint8_t r = v;
             uint8_t g = v;
             uint8_t b = v;
             pixels[y * W + x] =
-                (0xFFu << 24) | (uint32_t(b) << 16) |
-                (uint32_t(g) << 8) | uint32_t(r);
+                (0xFFu << 24) |
+                (uint32_t(b) << 16) |
+                (uint32_t(g) << 8) |
+                uint32_t(r);
         }
     }
 
@@ -780,5 +780,3 @@ void DXRenderer::WaitForGpu() noexcept {
         WaitForSingleObject(m_fenceEvent, INFINITE);
     }
 }
-
-

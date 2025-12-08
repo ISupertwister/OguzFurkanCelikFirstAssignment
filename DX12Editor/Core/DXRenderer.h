@@ -10,6 +10,7 @@
 #include "DXMesh.h"
 
 class DXDevice;
+class DXMesh;
 
 class DXRenderer {
 public:
