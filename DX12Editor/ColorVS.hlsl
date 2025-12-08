@@ -7,18 +7,21 @@ struct VSInput
 {
     float3 position : POSITION;
     float3 color : COLOR;
+    float2 uv : TEXCOORD;
 };
 struct PSInput
 {
     float4 position : SV_POSITION;
     float3 color : COLOR;
+    float2 uv : TEXCOORD;
 };
-
-PSInput main(VSInput input)
+PSInput main(VSInput i)
 {
     PSInput o;
-    o.position = mul(gMVP, float4(input.position, 1.0f));
-    o.color = input.color;
+    o.position = mul(gMVP, float4(i.position, 1));
+    o.color = i.color;
+    o.uv = i.uv;
     return o;
 }
+
 
