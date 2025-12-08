@@ -4,21 +4,20 @@
 #include <DirectXMath.h>
 #include <cstdint>
 
-// Forward declaration
-class DXDevice;
+class DXDevice; // forward
 
-// Simple mesh: vertex buffer for a colored/UV triangle or quad.
 class DXMesh
 {
 public:
     DXMesh() noexcept = default;
     ~DXMesh() = default;
 
-    // Comment in English: Create a simple triangle mesh (pos/color/uv).
+    //Initialize a basic triangle mesh in an upload heap.
     bool InitializeTriangle(DXDevice* device) noexcept;
 
-    // Comment in English: Accessors used by the renderer.
-    D3D12_VERTEX_BUFFER_VIEW GetVBView() const noexcept { return m_vbView; }
+    //Bind VB and issue a draw call.
+    void Draw(ID3D12GraphicsCommandList* cmdList) noexcept;
+
     UINT GetVertexCount() const noexcept { return m_vertexCount; }
 
 private:
@@ -29,7 +28,7 @@ private:
         DirectX::XMFLOAT2 uv;
     };
 
-    Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer{};
+    Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW               m_vbView{};
     UINT                                   m_vertexCount{ 0 };
 };

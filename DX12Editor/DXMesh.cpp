@@ -5,7 +5,7 @@
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
-// Comment in English: Initialize a simple colored/UV triangle in an upload heap.
+// Comment in English: Initialize a simple colored/UV triangle into an upload heap.
 bool DXMesh::InitializeTriangle(DXDevice* device) noexcept
 {
     if (!device) return false;
@@ -14,22 +14,35 @@ bool DXMesh::InitializeTriangle(DXDevice* device) noexcept
 
     const Vertex verts[3] =
     {
-        { XMFLOAT3(0.0f,  0.5f, 0.0f), XMFLOAT3(1, 0, 0), XMFLOAT2(0.5f, 0.0f) },
-        { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0, 1, 0), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(0, 0, 1), XMFLOAT2(0.0f, 1.0f) },
+        { XMFLOAT3(0.0f,  0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.5f, 0.0f) },
+        { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
+        { XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) },
     };
 
-    m_vertexCount = static_cast<UINT>(_countof(verts));
+    m_vertexCount = 3;
     const UINT vbSize = sizeof(verts);
 
     // Upload heap for vertex buffer
-    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
-    auto bufDesc = CD3DX12_RESOURCE_DESC::Buffer(vbSize);
+    D3D12_HEAP_PROPERTIES heap{};
+    heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+
+    D3D12_RESOURCE_DESC buf{};
+    buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    buf.Alignment = 0;
+    buf.Width = vbSize;
+    buf.Height = 1;
+    buf.DepthOrArraySize = 1;
+    buf.MipLevels = 1;
+    buf.Format = DXGI_FORMAT_UNKNOWN;
+    buf.SampleDesc.Count = 1;
+    buf.SampleDesc.Quality = 0;
+    buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    buf.Flags = D3D12_RESOURCE_FLAG_NONE;
 
     if (FAILED(dev->CreateCommittedResource(
-        &heapProps,
+        &heap,
         D3D12_HEAP_FLAG_NONE,
-        &bufDesc,
+        &buf,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
         IID_PPV_ARGS(&m_vertexBuffer))))
@@ -40,16 +53,22 @@ bool DXMesh::InitializeTriangle(DXDevice* device) noexcept
     // Upload vertex data
     void* mapped = nullptr;
     D3D12_RANGE noRead{ 0, 0 };
-    if (FAILED(m_vertexBuffer->Map(0, &noRead, &mapped)))
-        return false;
-
+    m_vertexBuffer->Map(0, &noRead, &mapped);
     std::memcpy(mapped, verts, vbSize);
     m_vertexBuffer->Unmap(0, nullptr);
 
-    // Fill VB view
     m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
     m_vbView.SizeInBytes = vbSize;
     m_vbView.StrideInBytes = sizeof(Vertex);
 
     return true;
+}
+
+// Comment in English: Bind the mesh VB and draw it.
+void DXMesh::Draw(ID3D12GraphicsCommandList* cmdList) noexcept
+{
+    if (!cmdList || !m_vertexBuffer) return;
+
+    cmdList->IASetVertexBuffers(0, 1, &m_vbView);
+    cmdList->DrawInstanced(m_vertexCount, 1, 0, 0);
 }
