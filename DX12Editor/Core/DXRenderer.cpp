@@ -160,7 +160,7 @@ void DXRenderer::Render() noexcept {
     m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv); // SRV @ index 1
 
     // Draw
-    m_cmdList->DrawInstanced(3, 1, 0, 0);
+    m_cmdList->DrawInstanced(6, 1, 0, 0);
 
     // Back to PRESENT
     auto toPresent = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -517,10 +517,18 @@ bool DXRenderer::CreatePipelineState() noexcept {
 // Geometry
 // --------------------------------------------------------
 bool DXRenderer::CreateTriangleVB() noexcept {
-    const Vertex verts[3] = {
-        { XMFLOAT3(0.0f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.5f, 0.0f) },
-        { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(0,0,1), XMFLOAT2(0.0f, 1.0f) },
+    // Note: actually creates a textured quad (2 triangles, 6 vertices).
+
+    const Vertex verts[6] = {
+        // 1. triangle (top-left, bottom-right, bottom-left)
+        { XMFLOAT3(-0.5f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.0f, 0.0f) }, // top-left
+        { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(1.0f, 1.0f) }, // bottom-right
+        { XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(0,0,1), XMFLOAT2(0.0f, 1.0f) }, // bottom-left
+
+        // 2. triangle (top-left, top-right, bottom-right)
+        { XMFLOAT3(-0.5f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.0f, 0.0f) }, // top-left
+        { XMFLOAT3(0.5f,  0.5f, 0.0f), XMFLOAT3(0,1,1), XMFLOAT2(1.0f, 0.0f) }, // top-right
+        { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(1.0f, 1.0f) }, // bottom-right
     };
 
     const UINT vbSize = sizeof(verts);
