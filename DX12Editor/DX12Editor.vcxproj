@@ -141,6 +141,7 @@
     <ClInclude Include="Core\DXDevice.h" />
     <ClInclude Include="Core\DXRenderer.h" />
     <ClInclude Include="Core\FrameTimer.h" />
+    <ClInclude Include="d3dx12.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp" />

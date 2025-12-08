@@ -39,6 +39,9 @@
     <ClInclude Include="Core\FrameTimer.h">
       <Filter>Source Files\src\Core</Filter>
     </ClInclude>
+    <ClInclude Include="d3dx12.h">
+      <Filter>Source Files\src\Core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp">
