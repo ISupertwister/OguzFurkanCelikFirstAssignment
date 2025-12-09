@@ -5,6 +5,8 @@
 
 class Window {
 public:
+    using MessageCallback = std::function<LRESULT(HWND, UINT, WPARAM, LPARAM)>;
+
     Window(const std::wstring& title, int width, int height) noexcept;
     ~Window();
 
@@ -19,6 +21,9 @@ public:
     // Simple resize callback
     void SetResizeCallback(std::function<void(UINT, UINT)> cb) { m_onResize = std::move(cb); }
 
+    // Generic Win32 message callback (for input & ImGui)
+    void SetMessageCallback(MessageCallback cb) { m_onMessage = std::move(cb); }
+
 private:
     static LRESULT CALLBACK WndProcSetup(HWND, UINT, WPARAM, LPARAM) noexcept;
     static LRESULT CALLBACK WndProcThunk(HWND, UINT, WPARAM, LPARAM) noexcept;
@@ -30,7 +35,7 @@ private:
     int m_height{ 0 };
     HWND m_hWnd{ nullptr };
     HINSTANCE m_hInstance{ nullptr };
+
     std::function<void(UINT, UINT)> m_onResize;
+    MessageCallback m_onMessage;
 };
-
-

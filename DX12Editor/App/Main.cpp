@@ -1,5 +1,6 @@
 #include <windows.h>
 #include "Window.h"
+#include <windowsx.h> 
 #include "../Core/DXDevice.h"
 #include "../Core/DXRenderer.h"
 #include "../Core/FrameTimer.h"
@@ -27,6 +28,68 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
         renderer.Resize(w, h);
         });
 
+    // Win32 message callback: route input + ImGui to renderer
+    window.SetMessageCallback([&](HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) -> LRESULT
+        {
+            // 1) Let ImGui process the message first
+            if (DXRenderer::ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+                return 1; // ImGui consumed the message
+
+            // 2) Camera input handling (we only update state here)
+            switch (msg)
+            {
+            case WM_RBUTTONDOWN:
+                renderer.OnRightMouseDown();
+                break;
+            case WM_RBUTTONUP:
+                renderer.OnRightMouseUp();
+                break;
+
+            case WM_LBUTTONDOWN:
+                renderer.OnLeftMouseDown();
+                break;
+            case WM_LBUTTONUP:
+                renderer.OnLeftMouseUp();
+                break;
+
+            case WM_MOUSEMOVE:
+            {
+                static int lastX = GET_X_LPARAM(lParam);
+                static int lastY = GET_Y_LPARAM(lParam);
+
+                int x = GET_X_LPARAM(lParam);
+                int y = GET_Y_LPARAM(lParam);
+
+                float dx = float(x - lastX);
+                float dy = float(y - lastY);
+
+                lastX = x;
+                lastY = y;
+
+                renderer.OnMouseMove(dx, dy);
+                break;
+            }
+
+            case WM_MOUSEWHEEL:
+            {
+                int delta = GET_WHEEL_DELTA_WPARAM(wParam); // usually +/-120 per notch
+                float ticks = static_cast<float>(delta) / 120.0f;
+                renderer.OnMouseWheel(ticks);
+                break;
+            }
+
+            case WM_KEYDOWN:
+                renderer.OnKeyDown(static_cast<UINT>(wParam));
+                break;
+
+            case WM_KEYUP:
+                renderer.OnKeyUp(static_cast<UINT>(wParam));
+                break;
+            }
+
+            // Returning 0 means "not fully handled, let Window do its thing"
+            return 0;
+        });
     // Put adapter name in the title once
     std::wstringstream base;
     base << L"DX12 Editor  —  Adapter: " << dx.AdapterDesc();
