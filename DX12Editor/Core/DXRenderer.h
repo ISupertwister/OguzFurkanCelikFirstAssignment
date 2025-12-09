@@ -1,5 +1,6 @@
 #pragma once
 #include <d3d12.h>
+#include <wrl/client.h>
 #include <dxgi1_6.h>
 #include <wrl.h>
 #include <DirectXMath.h>
@@ -8,6 +9,14 @@
 #include <windows.h>
 #include "FrameTimer.h"
 #include "DXMesh.h"
+#include "Camera.h" 
+
+// ImGui Headers
+#include "imgui/imgui.h" 
+#include "imgui/imgui_impl_win32.h"
+#include "imgui/imgui_impl_dx12.h"
+
+using Microsoft::WRL::ComPtr;
 
 class DXDevice;
 class DXMesh;
@@ -15,11 +24,17 @@ class DXMesh;
 class DXRenderer {
 public:
     DXRenderer() noexcept = default;
-    ~DXRenderer() = default;
+    ~DXRenderer() noexcept;
 
     bool Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height) noexcept;
     void Render() noexcept;
     void Resize(UINT width, UINT height) noexcept;
+
+    // Main.cpp'den kameraya eriþmek için:
+    Camera* GetCamera() { return &m_camera; }
+
+    static LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+    static bool IsImGuiCapturingMouse() { return ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow); }
 
 private:
     bool CreateCommandQueue() noexcept;
@@ -63,6 +78,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
     DXGI_FORMAT m_depthFormat = DXGI_FORMAT_D32_FLOAT;
 
+    ComPtr<ID3D12DescriptorHeap> m_imguiSrvHeap;
+
     Microsoft::WRL::ComPtr<ID3D12Fence> m_fence;
     HANDLE  m_fenceEvent{ nullptr };
     UINT64  m_fenceValue{ 0 };
@@ -80,7 +97,7 @@ private:
     UINT     m_cbSize{ 0 };
     uint8_t* m_cbMapped{ nullptr };
 
-    Microsoft::WRL::ComPtr<ID3D12Resource> m_tex; // checker texture
+    Microsoft::WRL::ComPtr<ID3D12Resource> m_tex;
 
     FrameTimer m_timer;
     float m_time{ 0.0f };
@@ -94,11 +111,6 @@ private:
     UINT m_width{ 0 };
     UINT m_height{ 0 };
     DXMesh m_testMesh;
+
+    Camera m_camera;
 };
-
-
-
-
-
-
-
