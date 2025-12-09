@@ -1,7 +1,7 @@
 #include "Camera.h"
-#include <algorithm> 
+#include <algorithm>
 #include <cmath>
-#include <DirectXMath.h> 
+#include <DirectXMath.h>
 
 using namespace DirectX;
 
@@ -9,14 +9,29 @@ using namespace DirectX;
 constexpr float kMovementSpeed = 5.0f;
 constexpr float kFastSpeedMultiplier = 4.0f;
 constexpr float kRotationSpeed = 0.005f;
-constexpr float kMaxPitch = XM_PIDIV2 - 0.01f; // Gimbal lock önleme
+constexpr float kMaxPitch = XM_PIDIV2 - 0.01f; // Prevent gimbal lock
+
+constexpr float kZoomStep = 1.0f;   // Base zoom step per wheel "tick"
+constexpr float kMinOrbitDistance = 0.5f;
+constexpr float kMaxOrbitDistance = 100.0f;
 
 Camera::Camera() noexcept
-    : m_pitch(0.0f), m_yaw(0.0f),
-    m_fov(XM_PIDIV4), m_aspect(1.777f), m_nearZ(0.1f), m_farZ(100.0f)
+    : m_pitch(0.0f)
+    , m_yaw(0.0f)
+    , m_fov(XM_PIDIV4)
+    , m_aspect(1.777f)
+    , m_nearZ(0.1f)
+    , m_farZ(100.0f)
 {
-    // Baþlangýç pozisyonu
+    // Initial position
     m_position = { 0.0f, 0.0f, -3.0f };
+    m_lookAt = { 0.0f, 0.0f,  0.0f };
+    m_up = { 0.0f, 1.0f,  0.0f };
+
+    // Default orbit settings
+    m_orbitTarget = { 0.0f, 0.0f, 0.0f };
+    m_orbitDistance = 3.0f;
+
     RecalculateVectors();
 }
 
@@ -28,7 +43,7 @@ void Camera::SetProjection(float fov, float aspect, float nearZ, float farZ) {
 }
 
 void Camera::RecalculateVectors() {
-    // 1. Pitch ve Yaw'a göre yeni forward vektörünü hesapla
+    // Compute forward from pitch/yaw
     float cosPitch = cosf(m_pitch);
     float sinPitch = sinf(m_pitch);
     float cosYaw = cosf(m_yaw);
@@ -40,12 +55,22 @@ void Camera::RecalculateVectors() {
         cosPitch * cosYaw
     };
 
-    // 2. LookAt hedefini ayarla: Position + Forward Vector
-    m_lookAt.x = m_position.x + forward.x;
-    m_lookAt.y = m_position.y + forward.y;
-    m_lookAt.z = m_position.z + forward.z;
+    if (m_isOrbitMode) {
+        // In orbit mode, camera position is derived from pivot + distance
+        m_lookAt = m_orbitTarget;
 
-    // 3. Right ve Up vektörlerini hesapla
+        m_position.x = m_orbitTarget.x - forward.x * m_orbitDistance;
+        m_position.y = m_orbitTarget.y - forward.y * m_orbitDistance;
+        m_position.z = m_orbitTarget.z - forward.z * m_orbitDistance;
+    }
+    else {
+        // In free-fly mode, look-at is derived from position + forward
+        m_lookAt.x = m_position.x + forward.x;
+        m_lookAt.y = m_position.y + forward.y;
+        m_lookAt.z = m_position.z + forward.z;
+    }
+
+    // Compute up vector from forward and world up
     XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     XMVECTOR fwd = XMLoadFloat3(&forward);
 
@@ -61,13 +86,19 @@ void Camera::Update(float dt) {
         speed *= kFastSpeedMultiplier;
     }
 
+    // In orbit mode we ignore WASD-style movement and only update from orbit
+    if (m_isOrbitMode) {
+        RecalculateVectors();
+        return;
+    }
+
     XMVECTOR pos = XMLoadFloat3(&m_position);
     XMVECTOR lookAtVec = XMLoadFloat3(&m_lookAt);
     XMVECTOR fwd = XMVector3Normalize(XMVectorSubtract(lookAtVec, pos));
     XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
     XMVECTOR right = XMVector3Normalize(XMVector3Cross(worldUp, fwd));
 
-    // Hareket güncellemeleri
+    // Movement updates
     if (m_moveForward)  pos = XMVectorAdd(pos, XMVectorScale(fwd, speed));
     if (m_moveBackward) pos = XMVectorSubtract(pos, XMVectorScale(fwd, speed));
     if (m_moveRight)    pos = XMVectorAdd(pos, XMVectorScale(right, speed));
@@ -83,18 +114,19 @@ void Camera::Rotate(float dx, float dy) {
     m_yaw += dx * kRotationSpeed;
     m_pitch += dy * kRotationSpeed;
 
-    // Manual clamp (std::clamp C++17 zorunluluðunu kaldýrýr)
-    if (m_pitch > kMaxPitch) m_pitch = kMaxPitch;
+    // Clamp pitch
+    if (m_pitch > kMaxPitch)  m_pitch = kMaxPitch;
     if (m_pitch < -kMaxPitch) m_pitch = -kMaxPitch;
 
-    // Yaw'ý sarmala
-    if (m_yaw > XM_2PI) m_yaw -= XM_2PI;
+    // Wrap yaw
+    if (m_yaw > XM_2PI)  m_yaw -= XM_2PI;
     if (m_yaw < -XM_2PI) m_yaw += XM_2PI;
 
     RecalculateVectors();
 }
 
-void Camera::SetMovement(bool forward, bool back, bool left, bool right, bool up, bool down, bool speedMultiplier) {
+void Camera::SetMovement(bool forward, bool back, bool left, bool right,
+    bool up, bool down, bool speedMultiplier) {
     m_moveForward = forward;
     m_moveBackward = back;
     m_moveLeft = left;
@@ -105,15 +137,63 @@ void Camera::SetMovement(bool forward, bool back, bool left, bool right, bool up
 }
 
 void Camera::Focus(XMFLOAT3 targetPos, float distance) {
-    XMVECTOR target = XMLoadFloat3(&targetPos);
+    // Enable orbit mode around the given target
+    m_isOrbitMode = true;
+    m_orbitTarget = targetPos;
+    m_orbitDistance = std::clamp(distance, kMinOrbitDistance, kMaxOrbitDistance);
+
+    // Compute yaw/pitch from vector target -> camera
+    XMVECTOR target = XMLoadFloat3(&m_orbitTarget);
     XMVECTOR pos = XMLoadFloat3(&m_position);
-    XMVECTOR lookAtVec = XMLoadFloat3(&m_lookAt);
+    XMVECTOR dir = XMVector3Normalize(XMVectorSubtract(target, pos));
 
-    XMVECTOR fwd = XMVector3Normalize(XMVectorSubtract(lookAtVec, pos));
-    XMVECTOR newPos = XMVectorSubtract(target, XMVectorScale(fwd, distance));
+    XMFLOAT3 d;
+    XMStoreFloat3(&d, dir);
 
-    XMStoreFloat3(&m_position, newPos);
-    m_lookAt = targetPos;
+    // Derive yaw and pitch from direction
+    m_pitch = asinf(d.y);
+    m_yaw = atan2f(d.x, d.z);
+
+    RecalculateVectors();
+}
+
+void Camera::Zoom(float amount) {
+    if (amount == 0.0f)
+        return;
+
+    float zoomStep = kZoomStep * amount;
+
+    if (m_isOrbitMode) {
+        // In orbit mode we change the orbit distance
+        m_orbitDistance = std::clamp(m_orbitDistance - zoomStep, kMinOrbitDistance, kMaxOrbitDistance);
+        RecalculateVectors();
+    }
+    else {
+        // In free-fly mode we move along the forward direction
+        XMVECTOR pos = XMLoadFloat3(&m_position);
+        XMVECTOR lookAtVec = XMLoadFloat3(&m_lookAt);
+        XMVECTOR fwd = XMVector3Normalize(XMVectorSubtract(lookAtVec, pos));
+
+        pos = XMVectorAdd(pos, XMVectorScale(fwd, zoomStep));
+        XMStoreFloat3(&m_position, pos);
+
+        RecalculateVectors();
+    }
+}
+
+void Camera::SetOrbitMode(bool enabled, XMFLOAT3 target) {
+    m_isOrbitMode = enabled;
+
+    if (enabled) {
+        m_orbitTarget = target;
+
+        // Compute initial orbit distance from current position
+        XMVECTOR pos = XMLoadFloat3(&m_position);
+        XMVECTOR pivot = XMLoadFloat3(&m_orbitTarget);
+        XMVECTOR diff = XMVectorSubtract(pivot, pos);
+        float dist = XMVectorGetX(XMVector3Length(diff));
+        m_orbitDistance = std::clamp(dist, kMinOrbitDistance, kMaxOrbitDistance);
+    }
 
     RecalculateVectors();
 }
@@ -121,7 +201,7 @@ void Camera::Focus(XMFLOAT3 targetPos, float distance) {
 XMMATRIX Camera::GetViewMatrix() const noexcept {
     XMVECTOR pos = XMLoadFloat3(&m_position);
     XMVECTOR lookAt = XMLoadFloat3(&m_lookAt);
-    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    XMVECTOR up = XMLoadFloat3(&m_up);
 
     return XMMatrixLookAtLH(pos, lookAt, up);
 }
