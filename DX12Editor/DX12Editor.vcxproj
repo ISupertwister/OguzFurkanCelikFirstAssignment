@@ -138,18 +138,35 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="App\Window.h" />
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="Core\DXDevice.h" />
     <ClInclude Include="Core\DXRenderer.h" />
     <ClInclude Include="Core\FrameTimer.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DXMesh.h" />
+    <ClInclude Include="ImGui\imconfig.h" />
+    <ClInclude Include="ImGui\imgui.h" />
+    <ClInclude Include="ImGui\imgui_impl_dx12.h" />
+    <ClInclude Include="ImGui\imgui_impl_win32.h" />
+    <ClInclude Include="ImGui\imgui_internal.h" />
+    <ClInclude Include="ImGui\imstb_rectpack.h" />
+    <ClInclude Include="ImGui\imstb_textedit.h" />
+    <ClInclude Include="ImGui\imstb_truetype.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp" />
     <ClCompile Include="App\Window.cpp" />
+    <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Core\DXDevice.cpp" />
     <ClCompile Include="Core\DXRenderer.cpp" />
     <ClCompile Include="DXMesh.cpp" />
+    <ClCompile Include="ImGui\imgui.cpp" />
+    <ClCompile Include="ImGui\imgui_demo.cpp" />
+    <ClCompile Include="ImGui\imgui_draw.cpp" />
+    <ClCompile Include="ImGui\imgui_impl_dx12.cpp" />
+    <ClCompile Include="ImGui\imgui_impl_win32.cpp" />
+    <ClCompile Include="ImGui\imgui_tables.cpp" />
+    <ClCompile Include="ImGui\imgui_widgets.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="ColorPS.hlsl">
