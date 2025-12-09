@@ -30,11 +30,22 @@ public:
     void Render() noexcept;
     void Resize(UINT width, UINT height) noexcept;
 
-    // Main.cpp'den kameraya eriþmek için:
+    // Access to camera (if needed)
     Camera* GetCamera() { return &m_camera; }
 
+    // ImGui Win32 hook
     static LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     static bool IsImGuiCapturingMouse() { return ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow); }
+
+    // Input hooks from Window / Win32
+    void OnMouseMove(float dx, float dy);      // accumulate mouse delta
+    void OnMouseWheel(float wheelTicks);       // mouse wheel ticks (usually +/-1 per notch)
+    void OnRightMouseDown();
+    void OnRightMouseUp();
+    void OnLeftMouseDown();
+    void OnLeftMouseUp();
+    void OnKeyDown(UINT key);
+    void OnKeyUp(UINT key);
 
 private:
     bool CreateCommandQueue() noexcept;
@@ -113,4 +124,21 @@ private:
     DXMesh m_testMesh;
 
     Camera m_camera;
+
+    // --- Input state for camera controls ---
+    bool  m_isRightMouseDown{ false };
+    bool  m_isLeftMouseDown{ false };
+    bool  m_isAltDown{ false };
+    bool  m_isShiftDown{ false };
+
+    bool  m_keyW{ false };
+    bool  m_keyA{ false };
+    bool  m_keyS{ false };
+    bool  m_keyD{ false };
+    bool  m_keyQ{ false }; // down
+    bool  m_keyE{ false }; // up
+
+    float m_mouseDeltaX{ 0.0f };
+    float m_mouseDeltaY{ 0.0f };
+    float m_wheelTicks{ 0.0f };
 };

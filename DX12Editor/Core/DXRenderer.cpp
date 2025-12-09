@@ -26,6 +26,75 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 LRESULT DXRenderer::ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return ::ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam);
 }
+// ========================================================
+// INPUT HANDLERS (called from Win32 / Window)
+// ========================================================
+
+void DXRenderer::OnMouseMove(float dx, float dy)
+{
+    // Accumulate mouse delta for this frame
+    m_mouseDeltaX += dx;
+    m_mouseDeltaY += dy;
+}
+
+void DXRenderer::OnMouseWheel(float wheelTicks)
+{
+    m_wheelTicks += wheelTicks;
+}
+
+void DXRenderer::OnRightMouseDown()
+{
+    m_isRightMouseDown = true;
+}
+
+void DXRenderer::OnRightMouseUp()
+{
+    m_isRightMouseDown = false;
+}
+
+void DXRenderer::OnLeftMouseDown()
+{
+    m_isLeftMouseDown = true;
+}
+
+void DXRenderer::OnLeftMouseUp()
+{
+    m_isLeftMouseDown = false;
+}
+
+void DXRenderer::OnKeyDown(UINT key)
+{
+    if (key == VK_MENU)  m_isAltDown = true;
+    if (key == VK_SHIFT) m_isShiftDown = true;
+
+    if (key == 'W') m_keyW = true;
+    if (key == 'A') m_keyA = true;
+    if (key == 'S') m_keyS = true;
+    if (key == 'D') m_keyD = true;
+    if (key == 'Q') m_keyQ = true;
+    if (key == 'E') m_keyE = true;
+
+    // Focus key (F): focus on origin for now
+    if (key == 'F')
+    {
+        DirectX::XMFLOAT3 target = { 0.0f, 0.0f, 0.0f };
+        float distance = 5.0f;
+        m_camera.Focus(target, distance);
+    }
+}
+
+void DXRenderer::OnKeyUp(UINT key)
+{
+    if (key == VK_MENU)  m_isAltDown = false;
+    if (key == VK_SHIFT) m_isShiftDown = false;
+
+    if (key == 'W') m_keyW = false;
+    if (key == 'A') m_keyA = false;
+    if (key == 'S') m_keyS = false;
+    if (key == 'D') m_keyD = false;
+    if (key == 'Q') m_keyQ = false;
+    if (key == 'E') m_keyE = false;
+}
 
 // --------------------------------------------------------
 // Destructor (Cleanup)
@@ -140,15 +209,76 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
 // --------------------------------------------------------
 void DXRenderer::Render() noexcept
 {
-    // Zaman güncellemesi
+    // Time update
     m_timer.Tick();
     float dt = (float)m_timer.Delta();
     if (dt > 0.1f) dt = 0.1f;
 
-    // Kamera güncellemesi
+    // ====================================================
+    // CAMERA INPUT HANDLING (before updating camera)
+    // ====================================================
+
+    // Ignore camera input when ImGui is capturing the mouse
+    if (!IsImGuiCapturingMouse())
+    {
+        // 1) Mouse wheel zoom
+        if (m_wheelTicks != 0.0f) {
+            m_camera.Zoom(m_wheelTicks);
+            m_wheelTicks = 0.0f;
+        }
+
+        // 2) Alt + LMB → orbit mode around origin (for now)
+        if (m_isLeftMouseDown && m_isAltDown)
+        {
+            DirectX::XMFLOAT3 pivot = { 0.0f, 0.0f, 0.0f };
+            m_camera.SetOrbitMode(true, pivot);
+            m_camera.Rotate(m_mouseDeltaX, m_mouseDeltaY);
+        }
+        else
+        {
+            m_camera.SetOrbitMode(false);
+        }
+
+        // 3) RMB held → FPS free look + WASD movement
+        if (m_isRightMouseDown && !m_camera.IsOrbitMode())
+        {
+            // Mouse look
+            m_camera.Rotate(m_mouseDeltaX, m_mouseDeltaY);
+
+            // WASD-style movement
+            m_camera.SetMovement(
+                m_keyW,  // forward
+                m_keyS,  // backward
+                m_keyA,  // left
+                m_keyD,  // right
+                m_keyE,  // up
+                m_keyQ,  // down
+                m_isShiftDown // speed multiplier
+            );
+        }
+        else
+        {
+            // No movement when RMB is not pressed
+            m_camera.SetMovement(false, false, false, false, false, false, m_isShiftDown);
+        }
+    }
+    else
+    {
+        // When ImGui is active, stop camera movement
+        m_camera.SetMovement(false, false, false, false, false, false, false);
+        m_wheelTicks = 0.0f;
+    }
+
+    // Reset per-frame mouse delta
+    m_mouseDeltaX = 0.0f;
+    m_mouseDeltaY = 0.0f;
+
+    // Finally update camera transform
     m_camera.Update(dt);
 
-    // Komut listesi reset
+    // ====================================================
+    // COMMAND LIST RESET
+    // ====================================================
     if (FAILED(m_cmdAlloc->Reset())) return;
     if (FAILED(m_cmdList->Reset(m_cmdAlloc.Get(), m_pso.Get()))) return;
 
@@ -157,7 +287,7 @@ void DXRenderer::Render() noexcept
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    // Basit bir debug penceresi
+    // Simple debug window
     {
         double fps = 0.0;
         m_timer.SampleFps(0.5, fps);
@@ -165,14 +295,14 @@ void DXRenderer::Render() noexcept
         ImGui::Begin("Info");
         ImGui::Text("FPS: %.2f", fps);
 
-        XMFLOAT4X4 viewFloats;
-        XMStoreFloat4x4(&viewFloats, m_camera.GetViewMatrix());
+        DirectX::XMFLOAT4X4 viewFloats;
+        DirectX::XMStoreFloat4x4(&viewFloats, m_camera.GetViewMatrix());
         ImGui::Text("Camera Pos: %.2f %.2f %.2f",
             viewFloats._41, viewFloats._42, viewFloats._43);
         ImGui::End();
     }
 
-    // --------- BACKBUFFER HAZIRLAMA ---------
+    // --------- BACKBUFFER PREP ---------
     const UINT bb = m_swapChain->GetCurrentBackBufferIndex();
     ID3D12Resource* backBuffer = m_renderTargets[bb].Get();
 
@@ -197,24 +327,21 @@ void DXRenderer::Render() noexcept
     m_cmdList->ClearDepthStencilView(
         dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    // --------- SAHNE ÇİZİMİ (SENİN QUAD) ---------
-    // (Kendi CBV+SRV heap’in)
+    // --------- SCENE RENDER (quad) ---------
     ID3D12DescriptorHeap* sceneHeaps[] = { m_cbvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, sceneHeaps);
 
-    // MVP hesapla
-    XMMATRIX V = m_camera.GetViewMatrix();
-    XMMATRIX P = m_camera.GetProjectionMatrix();
-    XMMATRIX M = XMMatrixIdentity();
+    DirectX::XMMATRIX V = m_camera.GetViewMatrix();
+    DirectX::XMMATRIX P = m_camera.GetProjectionMatrix();
+    DirectX::XMMATRIX M = DirectX::XMMatrixIdentity();
 
-    XMMATRIX MVP = M * V * P;
-    XMMATRIX MVPt = XMMatrixTranspose(MVP);
+    DirectX::XMMATRIX MVP = M * V * P;
+    DirectX::XMMATRIX MVPt = DirectX::XMMatrixTranspose(MVP);
 
     if (m_cbMapped)
     {
-        struct CbMvp { DirectX::XMFLOAT4X4 mvp; };
         CbMvp cb{};
-        XMStoreFloat4x4(&cb.mvp, MVPt);
+        DirectX::XMStoreFloat4x4(&cb.mvp, MVPt);
         std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
     }
 
@@ -230,19 +357,16 @@ void DXRenderer::Render() noexcept
     UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     D3D12_GPU_DESCRIPTOR_HANDLE gpuSrv{ gpuStart.ptr + SIZE_T(inc) };
-    m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);   // SRV (checker texture)
+    m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);   // SRV
 
-    // Quad çiz
     m_cmdList->DrawInstanced(6, 1, 0, 0);
 
     // --------- IMGUI RENDER ---------
     ImGui::Render();
 
-    // Önce kendi CBV/SRV heap'imizi kullanıyorduk, şimdi ImGui için onun heap'ine geçiyoruz:
     ID3D12DescriptorHeap* imguiHeaps[] = { m_imguiSrvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, imguiHeaps);
 
-    // ImGui draw data'yı mevcut komut listesine ekle
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_cmdList.Get());
 
     // --------- PRESENT ---------
@@ -269,6 +393,7 @@ void DXRenderer::Render() noexcept
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
+
 
 
 // --------------------------------------------------------
