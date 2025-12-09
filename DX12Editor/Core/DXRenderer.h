@@ -9,7 +9,7 @@
 #include <windows.h>
 #include "FrameTimer.h"
 #include "DXMesh.h"
-#include "Camera.h" 
+#include "Camera.h"
 
 // ImGui Headers
 #include "imgui/imgui.h" 
@@ -58,6 +58,7 @@ private:
     bool CreateConstantBuffer() noexcept;
     bool CreateDepthResources() noexcept;
     bool CreateCheckerTextureSRV() noexcept;
+    bool CreateGridVB() noexcept;
     bool LoadFileBinary(const wchar_t* path, std::vector<uint8_t>& data) noexcept;
     void WaitForGpu() noexcept;
 
@@ -99,9 +100,15 @@ private:
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> m_rootSig;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> m_pso;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> m_psoLines;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW m_vbView{};
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> m_gridVertexBuffer;
+    D3D12_VERTEX_BUFFER_VIEW m_gridVbView{};
+    UINT m_gridVertexCount{ 0 }; // number of vertices for grid lines
+    UINT m_axisVertexCount{ 0 }; // number of vertices for axis lines
 
     Microsoft::WRL::ComPtr<ID3D12Resource>       m_cbUpload;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_cbvHeap;
@@ -124,6 +131,10 @@ private:
     DXMesh m_testMesh;
 
     Camera m_camera;
+
+    // Editor flags
+    bool m_showGrid{ true }; // ImGui toggle: show/hide grid
+    bool m_showAxis{ true }; // ImGui toggle: show/hide axis
 
     // --- Input state for camera controls ---
     bool  m_isRightMouseDown{ false };

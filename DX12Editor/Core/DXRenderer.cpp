@@ -119,18 +119,18 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     m_width = width;
     m_height = height;
 
-    // Kamera için başlangıç ayarı
+    // Start for camera
     float aspect = (m_height == 0) ? 1.0f : float(m_width) / float(m_height);
     m_camera.SetProjection(XM_PIDIV4, aspect, 0.1f, 1000.0f);
 
-    // Temel GPU nesneleri
+    // Basic GPU Objects
     if (!CreateCommandQueue()) return false;
     if (!CreateSwapChain(hwnd, width, height)) return false;
     if (!CreateRTVDescriptorHeap()) return false;
     if (!CreateRenderTargets()) return false;
     if (!CreateDepthResources()) return false;
 
-    // Komut listesi oluşturucusu
+    // Command list creator
     if (FAILED(m_device->GetDevice()->CreateCommandAllocator(
         D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_cmdAlloc))))
         return false;
@@ -143,9 +143,9 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
         IID_PPV_ARGS(&m_cmdList))))
         return false;
 
-    m_cmdList->Close(); // Şimdilik kapatıyoruz
+    m_cmdList->Close(); // Close for now
 
-    // Senkronizasyon (Fence)
+    // Senkronization (Fence)
     if (FAILED(m_device->GetDevice()->CreateFence(
         0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))))
         return false;
@@ -160,15 +160,16 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     m_viewport = { 0.0f, 0.0f, float(width), float(height), 0.0f, 1.0f };
     m_scissor = { 0, 0, int(width), int(height) };
 
-    // Pipeline ve kaynaklar
+    // Pipeline and sources
     if (!CreateRootSignature()) return false;
     if (!CreatePipelineState()) return false;
     if (!CreateConstantBuffer()) return false;
     if (!CreateTriangleVB()) return false;
+    if (!CreateGridVB()) return false;
     if (!CreateCheckerTextureSRV()) return false;
 
     // ====================================================
-    // IMGUI ENTEGRASYONU VE FONT YÜKLEME
+    // IMGUI ENTEGRATION AND OBTAINING FONT
     // ====================================================
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
     heapDesc.NumDescriptors = 1;
@@ -295,10 +296,17 @@ void DXRenderer::Render() noexcept
         ImGui::Begin("Info");
         ImGui::Text("FPS: %.2f", fps);
 
-        DirectX::XMFLOAT4X4 viewFloats;
-        DirectX::XMStoreFloat4x4(&viewFloats, m_camera.GetViewMatrix());
+        // Show real camera position
+        auto camPos = m_camera.GetPosition();
         ImGui::Text("Camera Pos: %.2f %.2f %.2f",
-            viewFloats._41, viewFloats._42, viewFloats._43);
+            camPos.x, camPos.y, camPos.z);
+
+        ImGui::Separator();
+
+        // Assignment options: show/hide grid and axis
+        ImGui::Checkbox("Show grid", &m_showGrid);
+        ImGui::Checkbox("Show axis", &m_showAxis);
+
         ImGui::End();
     }
 
@@ -327,29 +335,19 @@ void DXRenderer::Render() noexcept
     m_cmdList->ClearDepthStencilView(
         dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    // --------- SCENE RENDER (quad) ---------
+    // ====================================================
+    // SCENE RENDER: GRID + AXIS + TEXTURED QUAD
+    // ====================================================
+
     ID3D12DescriptorHeap* sceneHeaps[] = { m_cbvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, sceneHeaps);
 
     DirectX::XMMATRIX V = m_camera.GetViewMatrix();
     DirectX::XMMATRIX P = m_camera.GetProjectionMatrix();
-    DirectX::XMMATRIX M = DirectX::XMMatrixIdentity();
-
-    DirectX::XMMATRIX MVP = M * V * P;
-    DirectX::XMMATRIX MVPt = DirectX::XMMatrixTranspose(MVP);
-
-    if (m_cbMapped)
-    {
-        CbMvp cb{};
-        DirectX::XMStoreFloat4x4(&cb.mvp, MVPt);
-        std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
-    }
 
     m_cmdList->RSSetViewports(1, &m_viewport);
     m_cmdList->RSSetScissorRects(1, &m_scissor);
     m_cmdList->SetGraphicsRootSignature(m_rootSig.Get());
-    m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_cmdList->IASetVertexBuffers(0, 1, &m_vbView);
 
     auto gpuStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
     m_cmdList->SetGraphicsRootDescriptorTable(0, gpuStart); // CBV
@@ -357,9 +355,60 @@ void DXRenderer::Render() noexcept
     UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     D3D12_GPU_DESCRIPTOR_HANDLE gpuSrv{ gpuStart.ptr + SIZE_T(inc) };
-    m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);   // SRV
+    m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);   // SRV (checker texture)
 
-    m_cmdList->DrawInstanced(6, 1, 0, 0);
+    // =======================
+    // 1) GRID + AXIS (identity M)
+    // =======================
+    {
+        DirectX::XMMATRIX M = DirectX::XMMatrixIdentity();
+        DirectX::XMMATRIX MVP = M * V * P;
+        DirectX::XMMATRIX MVPt = DirectX::XMMatrixTranspose(MVP);
+
+        if (m_cbMapped)
+        {
+            CbMvp cb{};
+            DirectX::XMStoreFloat4x4(&cb.mvp, MVPt);
+            std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
+        }
+
+        m_cmdList->SetPipelineState(m_psoLines.Get());
+        m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+        m_cmdList->IASetVertexBuffers(0, 1, &m_gridVbView);
+
+        if (m_showGrid && m_gridVertexCount > 0)
+        {
+            m_cmdList->DrawInstanced(m_gridVertexCount, 1, 0, 0);
+        }
+
+        if (m_showAxis && m_axisVertexCount > 0)
+        {
+            m_cmdList->DrawInstanced(m_axisVertexCount, 1, m_gridVertexCount, 0);
+        }
+    }
+
+    // =======================
+    // 2) TEXTURED QUAD (scaled M)
+    // =======================
+    {
+        // Slightly larger quad at the origin.
+        DirectX::XMMATRIX M = DirectX::XMMatrixScaling(5.0f, 5.0f, 0.0f);
+
+        DirectX::XMMATRIX MVP = M * V * P;
+        DirectX::XMMATRIX MVPt = DirectX::XMMatrixTranspose(MVP);
+
+        if (m_cbMapped)
+        {
+            CbMvp cb{};
+            DirectX::XMStoreFloat4x4(&cb.mvp, MVPt);
+            std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
+        }
+
+        m_cmdList->SetPipelineState(m_pso.Get()); // PSO for triangles
+        m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_cmdList->IASetVertexBuffers(0, 1, &m_vbView);
+        m_cmdList->DrawInstanced(6, 1, 0, 0);
+    }
 
     // --------- IMGUI RENDER ---------
     ImGui::Render();
@@ -396,6 +445,7 @@ void DXRenderer::Render() noexcept
 
 
 
+
 // --------------------------------------------------------
 // Resize
 // --------------------------------------------------------
@@ -425,7 +475,7 @@ void DXRenderer::Resize(UINT width, UINT height) noexcept {
 }
 
 // --------------------------------------------------------
-// Yardımcı Fonksiyonlar
+// Sup Functions
 // --------------------------------------------------------
 bool DXRenderer::CreateCommandQueue() noexcept {
     D3D12_COMMAND_QUEUE_DESC desc{};
@@ -568,23 +618,35 @@ bool DXRenderer::CreateRootSignature() noexcept {
     return SUCCEEDED(m_device->GetDevice()->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig)));
 }
 
-bool DXRenderer::CreatePipelineState() noexcept {
+bool DXRenderer::CreatePipelineState() noexcept
+{
+    // Load compiled shaders and create two PSOs:
+    // one for triangles (textured quad) and one for lines (grid + axis).
+
     auto shaderPath = [](const wchar_t* file) -> std::wstring {
         wchar_t exe[MAX_PATH];
         GetModuleFileNameW(nullptr, exe, MAX_PATH);
         std::filesystem::path p(exe);
         p = p.parent_path() / L"Shaders" / file;
         return p.wstring();
-    };
+        };
 
-    std::vector<uint8_t> vs, ps;
-    if (!LoadFileBinary(shaderPath(L"ColorVS.cso").c_str(), vs)) return false;
-    if (!LoadFileBinary(shaderPath(L"ColorPS.cso").c_str(), ps)) return false;
+    std::vector<uint8_t> vs;
+    std::vector<uint8_t> ps;
 
-    D3D12_INPUT_ELEMENT_DESC layout[] = {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    if (!LoadFileBinary(shaderPath(L"ColorVS.cso").c_str(), vs))
+        return false;
+    if (!LoadFileBinary(shaderPath(L"ColorPS.cso").c_str(), ps))
+        return false;
+
+    D3D12_INPUT_ELEMENT_DESC layout[] =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "COLOR",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 24,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
@@ -592,7 +654,6 @@ bool DXRenderer::CreatePipelineState() noexcept {
     pso.VS = { vs.data(), (UINT)vs.size() };
     pso.PS = { ps.data(), (UINT)ps.size() };
     pso.InputLayout = { layout, _countof(layout) };
-    pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     pso.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     pso.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
     pso.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -601,9 +662,21 @@ bool DXRenderer::CreatePipelineState() noexcept {
     pso.RTVFormats[0] = m_backbufferFormat;
     pso.DSVFormat = m_depthFormat;
     pso.SampleDesc = { 1, 0 };
+    pso.SampleMask = UINT_MAX; // avoid debug warning: zero sample mask
 
-    return SUCCEEDED(m_device->GetDevice()->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&m_pso)));
+    // --- PSO for triangles (textured quad) ---
+    pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    HRESULT hrTri = m_device->GetDevice()->CreateGraphicsPipelineState(
+        &pso, IID_PPV_ARGS(&m_pso));
+
+    // --- PSO for lines (grid + axis) ---
+    pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+    HRESULT hrLine = m_device->GetDevice()->CreateGraphicsPipelineState(
+        &pso, IID_PPV_ARGS(&m_psoLines));
+
+    return SUCCEEDED(hrTri) && SUCCEEDED(hrLine);
 }
+
 
 bool DXRenderer::CreateTriangleVB() noexcept {
     const Vertex verts[6] = {
@@ -634,7 +707,85 @@ bool DXRenderer::CreateTriangleVB() noexcept {
 
     return true;
 }
+bool DXRenderer::CreateGridVB() noexcept
+{
+    // Create line-list vertex buffer for ground grid and world axes.
 
+    constexpr int   kHalfLines = 20;
+    constexpr float kSpacing = 0.5f;
+
+    std::vector<Vertex> verts;
+    verts.reserve((kHalfLines * 2 + 1) * 4 + 6); // rough estimate
+
+    using DirectX::XMFLOAT2;
+    using DirectX::XMFLOAT3;
+
+    const XMFLOAT3 gridColor = { 0.25f, 0.25f, 0.25f }; // gray lines
+
+    // Grid lines on XZ plane (y = 0)
+    for (int i = -kHalfLines; i <= kHalfLines; ++i)
+    {
+        float x = float(i) * kSpacing;
+        float z = float(i) * kSpacing;
+
+        // Lines parallel to X axis (vary X, fixed Z)
+        verts.push_back({ XMFLOAT3(-kHalfLines * kSpacing, 0.0f, z), gridColor, XMFLOAT2(0.0f, 0.0f) });
+        verts.push_back({ XMFLOAT3(kHalfLines * kSpacing, 0.0f, z), gridColor, XMFLOAT2(1.0f, 0.0f) });
+
+        // Lines parallel to Z axis (vary Z, fixed X)
+        verts.push_back({ XMFLOAT3(x, 0.0f, -kHalfLines * kSpacing), gridColor, XMFLOAT2(0.0f, 0.0f) });
+        verts.push_back({ XMFLOAT3(x, 0.0f,  kHalfLines * kSpacing), gridColor, XMFLOAT2(1.0f, 0.0f) });
+    }
+
+    // Remember where axis vertices start
+    m_gridVertexCount = static_cast<UINT>(verts.size());
+
+    // Axis colors
+    const XMFLOAT3 xColor = { 1.0f, 0.0f, 0.0f }; // X axis - red
+    const XMFLOAT3 yColor = { 0.0f, 1.0f, 0.0f }; // Y axis - green
+    const XMFLOAT3 zColor = { 0.0f, 0.0f, 1.0f }; // Z axis - blue
+
+    // X axis (horizontal line on X)
+    verts.push_back({ XMFLOAT3(-kHalfLines * kSpacing, 0.0f, 0.0f), xColor, XMFLOAT2(0.0f, 0.0f) });
+    verts.push_back({ XMFLOAT3(kHalfLines * kSpacing, 0.0f, 0.0f), xColor, XMFLOAT2(1.0f, 0.0f) });
+
+    // Z axis (horizontal line on Z)
+    verts.push_back({ XMFLOAT3(0.0f, 0.0f, -kHalfLines * kSpacing), zColor, XMFLOAT2(0.0f, 0.0f) });
+    verts.push_back({ XMFLOAT3(0.0f, 0.0f,  kHalfLines * kSpacing), zColor, XMFLOAT2(1.0f, 0.0f) });
+
+    // Y axis (vertical line)
+    verts.push_back({ XMFLOAT3(0.0f, -kHalfLines * kSpacing, 0.0f), yColor, XMFLOAT2(0.0f, 0.0f) });
+    verts.push_back({ XMFLOAT3(0.0f,  kHalfLines * kSpacing, 0.0f), yColor, XMFLOAT2(0.0f, 1.0f) });
+
+    m_axisVertexCount = static_cast<UINT>(verts.size()) - m_gridVertexCount;
+
+    const UINT vbSize = static_cast<UINT>(verts.size() * sizeof(Vertex));
+
+    D3D12_HEAP_PROPERTIES heap{ D3D12_HEAP_TYPE_UPLOAD };
+    D3D12_RESOURCE_DESC   buf = CD3DX12_RESOURCE_DESC::Buffer(vbSize);
+
+    if (FAILED(m_device->GetDevice()->CreateCommittedResource(
+        &heap, D3D12_HEAP_FLAG_NONE, &buf,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&m_gridVertexBuffer))))
+    {
+        return false;
+    }
+
+    void* mapped = nullptr;
+    if (FAILED(m_gridVertexBuffer->Map(0, nullptr, &mapped)))
+        return false;
+
+    std::memcpy(mapped, verts.data(), vbSize);
+    m_gridVertexBuffer->Unmap(0, nullptr);
+
+    m_gridVbView.BufferLocation = m_gridVertexBuffer->GetGPUVirtualAddress();
+    m_gridVbView.SizeInBytes = vbSize;
+    m_gridVbView.StrideInBytes = sizeof(Vertex);
+
+    return true;
+}
 bool DXRenderer::CreateConstantBuffer() noexcept {
     m_cbSize = (sizeof(CbMvp) + 255) & ~255u;
     D3D12_HEAP_PROPERTIES heap{ D3D12_HEAP_TYPE_UPLOAD };

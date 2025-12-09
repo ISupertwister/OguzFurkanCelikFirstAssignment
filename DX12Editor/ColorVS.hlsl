@@ -18,7 +18,7 @@ struct PSInput
 PSInput main(VSInput i)
 {
     PSInput o;
-    o.position = mul(gMVP, float4(i.position, 1));
+    o.position = mul(float4(i.position, 1), gMVP);
     o.color = i.color;
     o.uv = i.uv;
     return o;
