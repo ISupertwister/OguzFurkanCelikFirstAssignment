@@ -5,7 +5,7 @@
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
-// Comment in English: Initialize a simple colored/UV triangle into an upload heap.
+// Initialize a simple colored/UV triangle into an upload heap.
 bool DXMesh::InitializeTriangle(DXDevice* device) noexcept
 {
     if (!device) return false;
@@ -64,7 +64,7 @@ bool DXMesh::InitializeTriangle(DXDevice* device) noexcept
     return true;
 }
 
-// Comment in English: Bind the mesh VB and draw it.
+// Bind the mesh VB and draw it.
 void DXMesh::Draw(ID3D12GraphicsCommandList* cmdList) noexcept
 {
     if (!cmdList || !m_vertexBuffer) return;
