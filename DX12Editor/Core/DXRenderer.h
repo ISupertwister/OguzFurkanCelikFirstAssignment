@@ -131,6 +131,7 @@ private:
     UINT m_width{ 0 };
     UINT m_height{ 0 };
     DXMesh m_testMesh;
+    DXMesh m_quadMesh;
 
     Camera m_camera;
 

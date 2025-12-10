@@ -165,9 +165,16 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     if (!CreateRootSignature()) return false;
     if (!CreatePipelineState()) return false;
     if (!CreateConstantBuffer()) return false;
-    if (!CreateTriangleVB()) return false;
+    if (!CreateTriangleVB()) return false;      // eski raw quad VB (istersen sonra silebiliriz)
     if (!CreateGridVB()) return false;
     if (!CreateCheckerTextureSRV()) return false;
+
+    // >>> DXMesh tabanlı quad'ı burada oluşturuyoruz <<<
+    {
+        auto* dev = m_device->GetDevice();
+        if (!m_quadMesh.InitializeQuad(dev))
+            return false;
+    }
 
     // ====================================================
     // IMGUI INTEGRATION
@@ -204,33 +211,35 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     return true;
 }
 
+
 // --------------------------------------------------------
 // Frame rendering
 // --------------------------------------------------------
 void DXRenderer::Render() noexcept
 {
-    // Time update
+    // =========================
+    // Time
+    // =========================
     m_timer.Tick();
-    float dt = (float)m_timer.Delta();
+    float dt = static_cast<float>(m_timer.Delta());
     if (dt > 0.1f) dt = 0.1f;
 
-    // ====================================================
-    // CAMERA INPUT HANDLING (before updating camera)
-    // ====================================================
-
-    // Ignore camera input when ImGui is capturing the mouse
+    // =========================
+    // CAMERA INPUT
+    // =========================
     if (!IsImGuiCapturingMouse())
     {
-        // 1) Mouse wheel zoom
-        if (m_wheelTicks != 0.0f) {
+        // Mouse wheel zoom
+        if (m_wheelTicks != 0.0f)
+        {
             m_camera.Zoom(m_wheelTicks);
             m_wheelTicks = 0.0f;
         }
 
-        // 2) Alt + LMB → orbit mode around origin (for now)
+        // Alt + LMB = orbit
         if (m_isLeftMouseDown && m_isAltDown)
         {
-            DirectX::XMFLOAT3 pivot = { 0.0f, 0.0f, 0.0f };
+            DirectX::XMFLOAT3 pivot{ 0.0f, 0.0f, 0.0f };
             m_camera.SetOrbitMode(true, pivot);
             m_camera.Rotate(m_mouseDeltaX, m_mouseDeltaY);
         }
@@ -239,55 +248,52 @@ void DXRenderer::Render() noexcept
             m_camera.SetOrbitMode(false);
         }
 
-        // 3) RMB held → FPS free look + WASD movement
+        // RMB = FPS style look + WASD
         if (m_isRightMouseDown && !m_camera.IsOrbitMode())
         {
-            // Mouse look
             m_camera.Rotate(m_mouseDeltaX, m_mouseDeltaY);
 
-            // WASD-style movement
             m_camera.SetMovement(
-                m_keyW,  // forward
-                m_keyS,  // backward
-                m_keyA,  // left
-                m_keyD,  // right
-                m_keyE,  // up
-                m_keyQ,  // down
-                m_isShiftDown // speed multiplier
+                m_keyW,         // forward
+                m_keyS,         // backward
+                m_keyA,         // left
+                m_keyD,         // right
+                m_keyE,         // up
+                m_keyQ,         // down
+                m_isShiftDown   // fast
             );
         }
         else
         {
-            // No movement when RMB is not pressed
-            m_camera.SetMovement(false, false, false, false, false, false, m_isShiftDown);
+            m_camera.SetMovement(false, false, false, false, false, false, false);
         }
     }
     else
     {
-        // When ImGui is active, stop camera movement
+        // ImGui mouse'u alınca kamerayı dondur
         m_camera.SetMovement(false, false, false, false, false, false, false);
         m_wheelTicks = 0.0f;
     }
 
-    // Reset per-frame mouse delta
     m_mouseDeltaX = 0.0f;
     m_mouseDeltaY = 0.0f;
 
-    // Finally update camera transform
     m_camera.Update(dt);
 
-    // ====================================================
-    // COMMAND LIST RESET
-    // ====================================================
+    // =========================
+    // CMD LIST RESET
+    // =========================
     if (FAILED(m_cmdAlloc->Reset())) return;
     if (FAILED(m_cmdList->Reset(m_cmdAlloc.Get(), m_pso.Get()))) return;
 
-    // --------- IMGUI NEW FRAME ---------
+    // =========================
+    // IMGUI NEW FRAME
+    // =========================
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    // Simple debug window
+    // Info window
     {
         double fps = 0.0;
         m_timer.SampleFps(0.5, fps);
@@ -295,26 +301,25 @@ void DXRenderer::Render() noexcept
         ImGui::Begin("Info");
         ImGui::Text("FPS: %.2f", fps);
 
-        // Show real camera position
         auto camPos = m_camera.GetPosition();
         ImGui::Text("Camera Pos: %.2f %.2f %.2f",
             camPos.x, camPos.y, camPos.z);
 
         ImGui::Separator();
-
-        // Assignment options: show/hide grid and axis
         ImGui::Checkbox("Show grid", &m_showGrid);
         ImGui::Checkbox("Show axis", &m_showAxis);
-
         ImGui::End();
     }
 
-    // --------- BACKBUFFER PREP ---------
+    // =========================
+    // BACKBUFFER HAZIRLAMA
+    // =========================
     const UINT bb = m_swapChain->GetCurrentBackBufferIndex();
     ID3D12Resource* backBuffer = m_renderTargets[bb].Get();
 
     D3D12_RESOURCE_STATES beforeState =
-        m_firstFrame ? D3D12_RESOURCE_STATE_COMMON : D3D12_RESOURCE_STATE_PRESENT;
+        m_firstFrame ? D3D12_RESOURCE_STATE_COMMON
+        : D3D12_RESOURCE_STATE_PRESENT;
 
     auto toRT = CD3DX12_RESOURCE_BARRIER::Transition(
         backBuffer, beforeState, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -334,40 +339,44 @@ void DXRenderer::Render() noexcept
     m_cmdList->ClearDepthStencilView(
         dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    // ====================================================
-    // SCENE RENDER: GRID + AXIS + TEXTURED QUAD
-    // ====================================================
+    // =========================
+    // SCENE RENDER
+    // =========================
 
+    // CBV+SRV heap (0: CBV, 1: SRV)
     ID3D12DescriptorHeap* sceneHeaps[] = { m_cbvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, sceneHeaps);
-
-    DirectX::XMMATRIX V = m_camera.GetViewMatrix();
-    DirectX::XMMATRIX P = m_camera.GetProjectionMatrix();
 
     m_cmdList->RSSetViewports(1, &m_viewport);
     m_cmdList->RSSetScissorRects(1, &m_scissor);
     m_cmdList->SetGraphicsRootSignature(m_rootSig.Get());
 
-    auto gpuStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
-    m_cmdList->SetGraphicsRootDescriptorTable(0, gpuStart); // CBV
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuStart =
+        m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
 
+    // Root parameter 0 = CBV
+    m_cmdList->SetGraphicsRootDescriptorTable(0, gpuStart);
+
+    // Root parameter 1 = SRV (checker texture)
     UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     D3D12_GPU_DESCRIPTOR_HANDLE gpuSrv{ gpuStart.ptr + SIZE_T(inc) };
-    m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);   // SRV (checker texture)
+    m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);
 
-    // =======================
-    // 1) GRID + AXIS (identity M)
-    // =======================
+    using namespace DirectX;
+    XMMATRIX V = m_camera.GetViewMatrix();
+    XMMATRIX P = m_camera.GetProjectionMatrix();
+
+    // ---------- 1) GRID + AXIS (dünyada XZ düzleminde, M = I) ----------
     {
-        DirectX::XMMATRIX M = DirectX::XMMatrixIdentity();
-        DirectX::XMMATRIX MVP = M * V * P;
-        DirectX::XMMATRIX MVPt = DirectX::XMMatrixTranspose(MVP);
+        XMMATRIX M = XMMatrixIdentity();
+        XMMATRIX MVP = M * V * P;
+        XMMATRIX MVPt = XMMatrixTranspose(MVP);
 
         if (m_cbMapped)
         {
             CbMvp cb{};
-            DirectX::XMStoreFloat4x4(&cb.mvp, MVPt);
+            XMStoreFloat4x4(&cb.mvp, MVPt);
             std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
         }
 
@@ -386,39 +395,42 @@ void DXRenderer::Render() noexcept
         }
     }
 
-    // =======================
-    // 2) TEXTURED QUAD (scaled M)
-    // =======================
+    // ---------- 2) TEXTURED QUAD (zeminde, XZ düzlemi) ----------
     {
-        // Comment in English: Slightly larger quad at the origin in the same plane as defined in vertex data.
-        DirectX::XMMATRIX M = DirectX::XMMatrixScaling(5.0f, 5.0f, 1.0f) *
-            DirectX::XMMatrixRotationX(-DirectX::XM_PIDIV2);
+        // Quad şu an XY düzleminde (-0.5..0.5).
+        // Önce büyüt, sonra -90 derece X ekseni etrafında çevir → XZ düzlemi.
+        XMMATRIX M =
+            XMMatrixScaling(5.0f, 5.0f, 1.0f) *
+            XMMatrixRotationX(-XM_PIDIV2);
 
-        DirectX::XMMATRIX MVP = M * V * P;
-        DirectX::XMMATRIX MVPt = DirectX::XMMatrixTranspose(MVP);
+        XMMATRIX MVP = M * V * P;
+        XMMATRIX MVPt = XMMatrixTranspose(MVP);
 
         if (m_cbMapped)
         {
             CbMvp cb{};
-            DirectX::XMStoreFloat4x4(&cb.mvp, MVPt);
+            XMStoreFloat4x4(&cb.mvp, MVPt);
             std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
         }
 
-        m_cmdList->SetPipelineState(m_pso.Get()); // PSO for triangles
+        m_cmdList->SetPipelineState(m_pso.Get());
         m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         m_cmdList->IASetVertexBuffers(0, 1, &m_vbView);
         m_cmdList->DrawInstanced(6, 1, 0, 0);
     }
 
-    // --------- IMGUI RENDER ---------
+    // =========================
+    // IMGUI DRAW
+    // =========================
     ImGui::Render();
 
     ID3D12DescriptorHeap* imguiHeaps[] = { m_imguiSrvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, imguiHeaps);
-
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_cmdList.Get());
 
-    // --------- PRESENT ---------
+    // =========================
+    // PRESENT
+    // =========================
     auto toPresent = CD3DX12_RESOURCE_BARRIER::Transition(
         backBuffer,
         D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -442,6 +454,7 @@ void DXRenderer::Render() noexcept
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
+
 
 // --------------------------------------------------------
 // Resize

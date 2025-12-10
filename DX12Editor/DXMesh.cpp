@@ -1,73 +1,86 @@
 #include "DXMesh.h"
-#include "DXDevice.h"
 #include "d3dx12.h"
+#include <cstring> // for std::memcpy
 
-using Microsoft::WRL::ComPtr;
 using namespace DirectX;
+using Microsoft::WRL::ComPtr;
 
-// Initialize a simple colored/UV triangle into an upload heap.
-bool DXMesh::InitializeTriangle(DXDevice* device) noexcept
+bool DXMesh::InitializeQuad(ID3D12Device* device)
 {
-    if (!device) return false;
-    ID3D12Device* dev = device->GetDevice();
-    if (!dev) return false;
+    Destroy();
 
-    const Vertex verts[3] =
+    if (!device)
+        return false;
+
+    // Comment in English: 2x2 quad centered at origin, in the XY plane.
+    // Z = 0; we will place/rotate it with a world matrix in the renderer.
+    Vertex vertices[] =
     {
-        { XMFLOAT3(0.0f,  0.5f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.5f, 0.0f) },
-        { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) },
+        //  position               color                uv
+        { XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) }, // top-left
+        { XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) }, // top-right
+        { XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) }, // bottom-left
+
+        { XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) }, // bottom-left
+        { XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT2(1.0f, 1.0f) }, // bottom-right
+        { XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) }, // top-right
     };
 
-    m_vertexCount = 3;
-    const UINT vbSize = sizeof(verts);
+    const UINT vbSize = static_cast<UINT>(sizeof(vertices));
+    m_vertexCount = 6;
 
-    // Upload heap for vertex buffer
-    D3D12_HEAP_PROPERTIES heap{};
-    heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+    // Comment in English: Create an upload-heap vertex buffer.
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC   bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vbSize);
 
-    D3D12_RESOURCE_DESC buf{};
-    buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    buf.Alignment = 0;
-    buf.Width = vbSize;
-    buf.Height = 1;
-    buf.DepthOrArraySize = 1;
-    buf.MipLevels = 1;
-    buf.Format = DXGI_FORMAT_UNKNOWN;
-    buf.SampleDesc.Count = 1;
-    buf.SampleDesc.Quality = 0;
-    buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-    buf.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-    if (FAILED(dev->CreateCommittedResource(
-        &heap,
+    HRESULT hr = device->CreateCommittedResource(
+        &heapProps,
         D3D12_HEAP_FLAG_NONE,
-        &buf,
+        &bufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
-        IID_PPV_ARGS(&m_vertexBuffer))))
+        IID_PPV_ARGS(&m_vertexBuffer)
+    );
+
+    if (FAILED(hr))
     {
+        Destroy();
         return false;
     }
 
-    // Upload vertex data
-    void* mapped = nullptr;
-    D3D12_RANGE noRead{ 0, 0 };
-    m_vertexBuffer->Map(0, &noRead, &mapped);
-    std::memcpy(mapped, verts, vbSize);
+    // Comment in English: Copy CPU vertex data into the upload buffer.
+    UINT8* mappedData = nullptr;
+    CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on CPU.
+
+    hr = m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&mappedData));
+    if (FAILED(hr))
+    {
+        Destroy();
+        return false;
+    }
+
+    std::memcpy(mappedData, vertices, vbSize);
     m_vertexBuffer->Unmap(0, nullptr);
 
+    // Comment in English: Fill vertex buffer view.
     m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-    m_vbView.SizeInBytes = vbSize;
     m_vbView.StrideInBytes = sizeof(Vertex);
+    m_vbView.SizeInBytes = vbSize;
 
     return true;
 }
 
-// Bind the mesh VB and draw it.
-void DXMesh::Draw(ID3D12GraphicsCommandList* cmdList) noexcept
+void DXMesh::Destroy()
 {
-    if (!cmdList || !m_vertexBuffer) return;
+    m_vertexBuffer.Reset();
+    m_vbView = {};
+    m_vertexCount = 0;
+}
+
+void DXMesh::Draw(ID3D12GraphicsCommandList* cmdList) const
+{
+    if (!cmdList || !m_vertexBuffer)
+        return;
 
     cmdList->IASetVertexBuffers(0, 1, &m_vbView);
     cmdList->DrawInstanced(m_vertexCount, 1, 0, 0);
