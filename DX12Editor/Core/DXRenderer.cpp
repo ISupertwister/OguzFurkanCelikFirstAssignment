@@ -26,13 +26,14 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 LRESULT DXRenderer::ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return ::ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam);
 }
+
 // ========================================================
 // INPUT HANDLERS (called from Win32 / Window)
 // ========================================================
 
 void DXRenderer::OnMouseMove(float dx, float dy)
 {
-    // Accumulate mouse delta for this frame
+    // Comment in English: Accumulate mouse delta for this frame.
     m_mouseDeltaX += dx;
     m_mouseDeltaY += dy;
 }
@@ -119,7 +120,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     m_width = width;
     m_height = height;
 
-    // Start for camera
+    // Comment in English: Initial camera projection.
     float aspect = (m_height == 0) ? 1.0f : float(m_width) / float(m_height);
     m_camera.SetProjection(XM_PIDIV4, aspect, 0.1f, 1000.0f);
 
@@ -145,7 +146,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
 
     m_cmdList->Close(); // Close for now
 
-    // Senkronization (Fence)
+    // Synchronization (Fence)
     if (FAILED(m_device->GetDevice()->CreateFence(
         0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))))
         return false;
@@ -169,7 +170,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     if (!CreateCheckerTextureSRV()) return false;
 
     // ====================================================
-    // IMGUI ENTEGRATION AND OBTAINING FONT
+    // IMGUI INTEGRATION
     // ====================================================
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
     heapDesc.NumDescriptors = 1;
@@ -189,8 +190,6 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     ImGui_ImplWin32_Init(m_hwnd);
 
     // 3) Renderer backend (DX12)
-    //  - Burada KESİNLİKLE valid command queue, format, vs. veriyoruz.
-    //  - Font atlas'ı kendi içinde halledecek.
     ImGui_ImplDX12_Init(
         m_device->GetDevice(),
         kBufferCount,
@@ -391,8 +390,9 @@ void DXRenderer::Render() noexcept
     // 2) TEXTURED QUAD (scaled M)
     // =======================
     {
-        // Slightly larger quad at the origin.
-        DirectX::XMMATRIX M = DirectX::XMMatrixScaling(5.0f, 5.0f, 0.0f);
+        // Comment in English: Slightly larger quad at the origin in the same plane as defined in vertex data.
+        DirectX::XMMATRIX M = DirectX::XMMatrixScaling(5.0f, 5.0f, 1.0f) *
+            DirectX::XMMatrixRotationX(-DirectX::XM_PIDIV2);
 
         DirectX::XMMATRIX MVP = M * V * P;
         DirectX::XMMATRIX MVPt = DirectX::XMMatrixTranspose(MVP);
@@ -443,9 +443,6 @@ void DXRenderer::Render() noexcept
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
 
-
-
-
 // --------------------------------------------------------
 // Resize
 // --------------------------------------------------------
@@ -475,7 +472,7 @@ void DXRenderer::Resize(UINT width, UINT height) noexcept {
 }
 
 // --------------------------------------------------------
-// Sup Functions
+// Support functions
 // --------------------------------------------------------
 bool DXRenderer::CreateCommandQueue() noexcept {
     D3D12_COMMAND_QUEUE_DESC desc{};
@@ -615,14 +612,12 @@ bool DXRenderer::CreateRootSignature() noexcept {
 
     ComPtr<ID3DBlob> blob, err;
     if (FAILED(D3D12SerializeRootSignature(&rs, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &err))) return false;
-    return SUCCEEDED(m_device->GetDevice()->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig)));
+    return SUCCEEDED(m_device->GetDevice()->CreateRootSignature(
+        0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig)));
 }
 
 bool DXRenderer::CreatePipelineState() noexcept
 {
-    // Load compiled shaders and create two PSOs:
-    // one for triangles (textured quad) and one for lines (grid + axis).
-
     auto shaderPath = [](const wchar_t* file) -> std::wstring {
         wchar_t exe[MAX_PATH];
         GetModuleFileNameW(nullptr, exe, MAX_PATH);
@@ -662,21 +657,20 @@ bool DXRenderer::CreatePipelineState() noexcept
     pso.RTVFormats[0] = m_backbufferFormat;
     pso.DSVFormat = m_depthFormat;
     pso.SampleDesc = { 1, 0 };
-    pso.SampleMask = UINT_MAX; // avoid debug warning: zero sample mask
+    pso.SampleMask = UINT_MAX;
 
-    // --- PSO for triangles (textured quad) ---
+    // PSO for triangles
     pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     HRESULT hrTri = m_device->GetDevice()->CreateGraphicsPipelineState(
         &pso, IID_PPV_ARGS(&m_pso));
 
-    // --- PSO for lines (grid + axis) ---
+    // PSO for lines
     pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
     HRESULT hrLine = m_device->GetDevice()->CreateGraphicsPipelineState(
         &pso, IID_PPV_ARGS(&m_psoLines));
 
     return SUCCEEDED(hrTri) && SUCCEEDED(hrLine);
 }
-
 
 bool DXRenderer::CreateTriangleVB() noexcept {
     const Vertex verts[6] = {
@@ -707,20 +701,19 @@ bool DXRenderer::CreateTriangleVB() noexcept {
 
     return true;
 }
+
 bool DXRenderer::CreateGridVB() noexcept
 {
-    // Create line-list vertex buffer for ground grid and world axes.
-
     constexpr int   kHalfLines = 20;
     constexpr float kSpacing = 0.5f;
 
     std::vector<Vertex> verts;
-    verts.reserve((kHalfLines * 2 + 1) * 4 + 6); // rough estimate
+    verts.reserve((kHalfLines * 2 + 1) * 4 + 6);
 
     using DirectX::XMFLOAT2;
     using DirectX::XMFLOAT3;
 
-    const XMFLOAT3 gridColor = { 0.25f, 0.25f, 0.25f }; // gray lines
+    const XMFLOAT3 gridColor = { 0.25f, 0.25f, 0.25f };
 
     // Grid lines on XZ plane (y = 0)
     for (int i = -kHalfLines; i <= kHalfLines; ++i)
@@ -737,23 +730,21 @@ bool DXRenderer::CreateGridVB() noexcept
         verts.push_back({ XMFLOAT3(x, 0.0f,  kHalfLines * kSpacing), gridColor, XMFLOAT2(1.0f, 0.0f) });
     }
 
-    // Remember where axis vertices start
     m_gridVertexCount = static_cast<UINT>(verts.size());
 
-    // Axis colors
-    const XMFLOAT3 xColor = { 1.0f, 0.0f, 0.0f }; // X axis - red
-    const XMFLOAT3 yColor = { 0.0f, 1.0f, 0.0f }; // Y axis - green
-    const XMFLOAT3 zColor = { 0.0f, 0.0f, 1.0f }; // Z axis - blue
+    const XMFLOAT3 xColor = { 1.0f, 0.0f, 0.0f };
+    const XMFLOAT3 yColor = { 0.0f, 1.0f, 0.0f };
+    const XMFLOAT3 zColor = { 0.0f, 0.0f, 1.0f };
 
-    // X axis (horizontal line on X)
+    // X axis
     verts.push_back({ XMFLOAT3(-kHalfLines * kSpacing, 0.0f, 0.0f), xColor, XMFLOAT2(0.0f, 0.0f) });
     verts.push_back({ XMFLOAT3(kHalfLines * kSpacing, 0.0f, 0.0f), xColor, XMFLOAT2(1.0f, 0.0f) });
 
-    // Z axis (horizontal line on Z)
+    // Z axis
     verts.push_back({ XMFLOAT3(0.0f, 0.0f, -kHalfLines * kSpacing), zColor, XMFLOAT2(0.0f, 0.0f) });
     verts.push_back({ XMFLOAT3(0.0f, 0.0f,  kHalfLines * kSpacing), zColor, XMFLOAT2(1.0f, 0.0f) });
 
-    // Y axis (vertical line)
+    // Y axis
     verts.push_back({ XMFLOAT3(0.0f, -kHalfLines * kSpacing, 0.0f), yColor, XMFLOAT2(0.0f, 0.0f) });
     verts.push_back({ XMFLOAT3(0.0f,  kHalfLines * kSpacing, 0.0f), yColor, XMFLOAT2(0.0f, 1.0f) });
 
@@ -786,6 +777,7 @@ bool DXRenderer::CreateGridVB() noexcept
 
     return true;
 }
+
 bool DXRenderer::CreateConstantBuffer() noexcept {
     m_cbSize = (sizeof(CbMvp) + 255) & ~255u;
     D3D12_HEAP_PROPERTIES heap{ D3D12_HEAP_TYPE_UPLOAD };
@@ -823,13 +815,17 @@ bool DXRenderer::CreateCheckerTextureSRV() noexcept {
 
     D3D12_HEAP_PROPERTIES defHeap{ D3D12_HEAP_TYPE_DEFAULT };
     D3D12_RESOURCE_DESC tex = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, W, H);
-    if (FAILED(m_device->GetDevice()->CreateCommittedResource(&defHeap, D3D12_HEAP_FLAG_NONE, &tex, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_tex)))) return false;
+    if (FAILED(m_device->GetDevice()->CreateCommittedResource(
+        &defHeap, D3D12_HEAP_FLAG_NONE, &tex, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_tex))))
+        return false;
 
     const UINT64 uploadSize = GetRequiredIntermediateSize(m_tex.Get(), 0, 1);
     D3D12_HEAP_PROPERTIES upHeap{ D3D12_HEAP_TYPE_UPLOAD };
     auto upDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadSize);
     ComPtr<ID3D12Resource> upload;
-    if (FAILED(m_device->GetDevice()->CreateCommittedResource(&upHeap, D3D12_HEAP_FLAG_NONE, &upDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&upload)))) return false;
+    if (FAILED(m_device->GetDevice()->CreateCommittedResource(
+        &upHeap, D3D12_HEAP_FLAG_NONE, &upDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&upload))))
+        return false;
 
     D3D12_SUBRESOURCE_DATA s{};
     s.pData = pixels.data();
@@ -840,7 +836,8 @@ bool DXRenderer::CreateCheckerTextureSRV() noexcept {
     if (FAILED(m_cmdList->Reset(m_cmdAlloc.Get(), nullptr))) return false;
 
     UpdateSubresources(m_cmdList.Get(), m_tex.Get(), upload.Get(), 0, 0, 1, &s);
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_tex.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        m_tex.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     m_cmdList->ResourceBarrier(1, &barrier);
     m_cmdList->Close();
 
@@ -849,8 +846,9 @@ bool DXRenderer::CreateCheckerTextureSRV() noexcept {
     WaitForGpu();
 
     D3D12_CPU_DESCRIPTOR_HANDLE cpuStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
-    UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    D3D12_CPU_DESCRIPTOR_HANDLE cpuSrv{ cpuStart.ptr + SIZE_T(inc) };
+    UINT inc2 = m_device->GetDevice()->GetDescriptorHandleIncrementSize(
+        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuSrv{ cpuStart.ptr + SIZE_T(inc2) };
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
     srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;

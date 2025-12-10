@@ -35,7 +35,9 @@ public:
 
     // ImGui Win32 hook
     static LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-    static bool IsImGuiCapturingMouse() { return ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow); }
+
+    // Comment in English: Let ImGui tell us when it wants to capture the mouse.
+    static bool IsImGuiCapturingMouse() { return ImGui::GetIO().WantCaptureMouse; }
 
     // Input hooks from Window / Win32
     void OnMouseMove(float dx, float dy);      // accumulate mouse delta
