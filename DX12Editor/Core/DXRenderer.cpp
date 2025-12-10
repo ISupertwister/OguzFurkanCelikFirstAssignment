@@ -275,6 +275,27 @@ void DXRenderer::Render() noexcept
         m_wheelTicks = 0.0f;
     }
 
+    // =========================
+    // FOCUS KEY (F) - SNAP TO QUAD / ORIGIN
+    // =========================
+    {
+        // Comment in English: Edge-detect F key press using Win32 async state.
+        static bool s_wasFDown = false;
+        SHORT state = GetAsyncKeyState('F');
+        bool isFDown = (state & 0x8000) != 0;
+
+        if (isFDown && !s_wasFDown)
+        {
+            // Comment in English: Focus on origin (quad center) at a fixed distance.
+            DirectX::XMFLOAT3 focusTarget{ 0.0f, 0.0f, 0.0f };
+            float focusDistance = 10.0f; // Tunable: how far from the quad we end up.
+
+            m_camera.Focus(focusTarget, focusDistance);
+        }
+
+        s_wasFDown = isFDown;
+    }
+
     m_mouseDeltaX = 0.0f;
     m_mouseDeltaY = 0.0f;
 
@@ -480,6 +501,7 @@ void DXRenderer::Render() noexcept
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
+
 
 
 
