@@ -71,9 +71,14 @@ private:
         DirectX::XMFLOAT2 uv;
     };
 
-    struct alignas(256) CbMvp {
-        DirectX::XMFLOAT4X4 mvp;
+    struct alignas(256) CbMvp
+    {
+        DirectX::XMFLOAT4X4 mvp;    // World-View-Projection matrix.
+        UINT samplerIndex;          // Which sampler to use in the pixel shader.
+        UINT _pad[3];               // Padding to keep constant buffer 16-byte aligned.
     };
+
+
 
 private:
     HWND m_hwnd{ nullptr };
@@ -139,15 +144,20 @@ private:
     bool m_showGrid{ true }; // ImGui toggle: show/hide grid
     bool m_showAxis{ true }; // ImGui toggle: show/hide axis
 
-    // Comment in English: Simple sampler type enum for UI.
+    // Comment in English: Simple sampler type enum for UI (must match HLSL side).
     enum class SamplerType
     {
         LinearWrap = 0,
-        PointWrap = 1
+        PointWrap = 1,
+        LinearClamp = 2,
+        PointClamp = 3
     };
 
     // Current sampler selection shown in ImGui.
     SamplerType m_samplerType = SamplerType::LinearWrap;
+
+
+    
 
     // --- Input state for camera controls ---
     bool  m_isRightMouseDown{ false };

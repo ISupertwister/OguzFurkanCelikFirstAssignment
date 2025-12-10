@@ -270,7 +270,7 @@ void DXRenderer::Render() noexcept
     }
     else
     {
-        // ImGui mouse'u alınca kamerayı dondur
+        // Comment in English: When ImGui captures the mouse, freeze camera input.
         m_camera.SetMovement(false, false, false, false, false, false, false);
         m_wheelTicks = 0.0f;
     }
@@ -313,12 +313,23 @@ void DXRenderer::Render() noexcept
         ImGui::Separator();
         ImGui::Text("Sampler Type");
 
-        const char* samplerNames[] = { "Linear / Wrap", "Point / Wrap" };
+        const char* samplerNames[] =
+        {
+            "Linear / Wrap",
+            "Point / Wrap",
+            "Linear / Clamp",
+            "Point / Clamp"
+        };
+
         int samplerIndex = static_cast<int>(m_samplerType);
 
-        // Update sampler type when user changes the combo.
+        // Comment in English: Update sampler type when user changes the combo.
         if (ImGui::Combo("Sampler", &samplerIndex, samplerNames, IM_ARRAYSIZE(samplerNames)))
         {
+            // Clamp to valid range (defensive).
+            if (samplerIndex < 0) samplerIndex = 0;
+            if (samplerIndex > 3) samplerIndex = 3;
+
             m_samplerType = static_cast<SamplerType>(samplerIndex);
         }
 
@@ -326,7 +337,7 @@ void DXRenderer::Render() noexcept
     }
 
     // =========================
-    // BACKBUFFER HAZIRLAMA
+    // BACKBUFFER SETUP
     // =========================
     const UINT bb = m_swapChain->GetCurrentBackBufferIndex();
     ID3D12Resource* backBuffer = m_renderTargets[bb].Get();
@@ -357,7 +368,7 @@ void DXRenderer::Render() noexcept
     // SCENE RENDER
     // =========================
 
-    // CBV+SRV heap (0: CBV, 1: SRV)
+    // Comment in English: CBV+SRV heap (0: CBV, 1: SRV).
     ID3D12DescriptorHeap* sceneHeaps[] = { m_cbvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, sceneHeaps);
 
@@ -381,7 +392,7 @@ void DXRenderer::Render() noexcept
     XMMATRIX V = m_camera.GetViewMatrix();
     XMMATRIX P = m_camera.GetProjectionMatrix();
 
-    // ---------- 1) GRID + AXIS (dünyada XZ düzleminde, M = I) ----------
+    // ---------- 1) GRID + AXIS (world XZ plane, M = I) ----------
     {
         XMMATRIX M = XMMatrixIdentity();
         XMMATRIX MVP = M * V * P;
@@ -391,6 +402,7 @@ void DXRenderer::Render() noexcept
         {
             CbMvp cb{};
             XMStoreFloat4x4(&cb.mvp, MVPt);
+            cb.samplerIndex = 0; // Comment in English: Not used for lines, safe default.
             std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
         }
 
@@ -408,11 +420,10 @@ void DXRenderer::Render() noexcept
             m_cmdList->DrawInstanced(m_axisVertexCount, 1, m_gridVertexCount, 0);
         }
     }
-    
-    // ---------- 2) TEXTURED QUAD (zeminde, XZ düzlemi) ----------
+
+    // ---------- 2) TEXTURED QUAD (ground plane, XZ) ----------
     {
-        // Quad şu an XY düzleminde (-0.5..0.5).
-        // Önce büyüt, sonra -90 derece X ekseni etrafında çevir → XZ düzlemi.
+        // Comment in English: Quad is defined in XY (-0.5..0.5). Scale and rotate to XZ plane.
         XMMATRIX M =
             XMMatrixScaling(5.0f, 5.0f, 1.0f) *
             XMMatrixRotationX(-XM_PIDIV2);
@@ -424,6 +435,7 @@ void DXRenderer::Render() noexcept
         {
             CbMvp cb{};
             XMStoreFloat4x4(&cb.mvp, MVPt);
+            cb.samplerIndex = static_cast<UINT>(m_samplerType);
             std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
         }
 
@@ -468,6 +480,7 @@ void DXRenderer::Render() noexcept
 
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
+
 
 
 // --------------------------------------------------------
@@ -592,10 +605,19 @@ bool DXRenderer::CreateDepthResources() noexcept {
     return true;
 }
 
-bool DXRenderer::CreateRootSignature() noexcept {
+bool DXRenderer::CreateRootSignature() noexcept
+{
+    // =========================
+    // 1) Descriptor ranges (CBV + SRV)
+    // =========================
+
+    // Comment in English: CBV range for b0 (constant buffer with MVP + samplerIndex).
     D3D12_DESCRIPTOR_RANGE rngCBV{};
     rngCBV.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
     rngCBV.NumDescriptors = 1;
+    rngCBV.BaseShaderRegister = 0; // b0
+    rngCBV.RegisterSpace = 0;
+    rngCBV.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
     D3D12_ROOT_DESCRIPTOR_TABLE tblCBV{};
     tblCBV.NumDescriptorRanges = 1;
@@ -604,11 +626,15 @@ bool DXRenderer::CreateRootSignature() noexcept {
     D3D12_ROOT_PARAMETER paramCBV{};
     paramCBV.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     paramCBV.DescriptorTable = tblCBV;
-    paramCBV.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+    paramCBV.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; // VS + PS can read CBV
 
+    // Comment in English: SRV range for t0 (checker texture).
     D3D12_DESCRIPTOR_RANGE rngSRV{};
     rngSRV.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     rngSRV.NumDescriptors = 1;
+    rngSRV.BaseShaderRegister = 0; // t0
+    rngSRV.RegisterSpace = 0;
+    rngSRV.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
     D3D12_ROOT_DESCRIPTOR_TABLE tblSRV{};
     tblSRV.NumDescriptorRanges = 1;
@@ -621,27 +647,87 @@ bool DXRenderer::CreateRootSignature() noexcept {
 
     D3D12_ROOT_PARAMETER paramsRS[2] = { paramCBV, paramSRV };
 
-    D3D12_STATIC_SAMPLER_DESC samp{};
-    samp.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    samp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    samp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    samp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    samp.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-    samp.MaxLOD = D3D12_FLOAT32_MAX;
-    samp.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    // =========================
+    // 2) Static samplers (4 modes)
+    // =========================
+
+    D3D12_STATIC_SAMPLER_DESC samplers[4]{};
+
+    // 0: Linear / Wrap
+    samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplers[0].MipLODBias = 0.0f;
+    samplers[0].MaxAnisotropy = 1;
+    samplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    samplers[0].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    samplers[0].MinLOD = 0.0f;
+    samplers[0].MaxLOD = D3D12_FLOAT32_MAX;
+    samplers[0].ShaderRegister = 0; // s0
+    samplers[0].RegisterSpace = 0;
+    samplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    // 1: Point / Wrap
+    samplers[1] = samplers[0];
+    samplers[1].Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+    samplers[1].ShaderRegister = 1; // s1
+
+    // 2: Linear / Clamp
+    samplers[2] = samplers[0];
+    samplers[2].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplers[2].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplers[2].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplers[2].ShaderRegister = 2; // s2
+
+    // 3: Point / Clamp
+    samplers[3] = samplers[2];
+    samplers[3].Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+    samplers[3].ShaderRegister = 3; // s3
+
+    // =========================
+    // 3) Root signature desc
+    // =========================
 
     D3D12_ROOT_SIGNATURE_DESC rs{};
     rs.NumParameters = 2;
     rs.pParameters = paramsRS;
-    rs.NumStaticSamplers = 1;
-    rs.pStaticSamplers = &samp;
+    rs.NumStaticSamplers = 4;
+    rs.pStaticSamplers = samplers;
     rs.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
+    // =========================
+    // 4) Serialize + create
+    // =========================
+
     ComPtr<ID3DBlob> blob, err;
-    if (FAILED(D3D12SerializeRootSignature(&rs, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &err))) return false;
-    return SUCCEEDED(m_device->GetDevice()->CreateRootSignature(
-        0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&m_rootSig)));
+    HRESULT hr = D3D12SerializeRootSignature(
+        &rs,
+        D3D_ROOT_SIGNATURE_VERSION_1,
+        &blob,
+        &err
+    );
+
+    if (FAILED(hr))
+    {
+        if (err)
+        {
+            // Comment in English: Print error from root signature serialization.
+            OutputDebugStringA((const char*)err->GetBufferPointer());
+        }
+        return false;
+    }
+
+    hr = m_device->GetDevice()->CreateRootSignature(
+        0,
+        blob->GetBufferPointer(),
+        blob->GetBufferSize(),
+        IID_PPV_ARGS(&m_rootSig)
+    );
+
+    return SUCCEEDED(hr);
 }
+
 
 bool DXRenderer::CreatePipelineState() noexcept
 {
