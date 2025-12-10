@@ -139,6 +139,16 @@ private:
     bool m_showGrid{ true }; // ImGui toggle: show/hide grid
     bool m_showAxis{ true }; // ImGui toggle: show/hide axis
 
+    // Comment in English: Simple sampler type enum for UI.
+    enum class SamplerType
+    {
+        LinearWrap = 0,
+        PointWrap = 1
+    };
+
+    // Current sampler selection shown in ImGui.
+    SamplerType m_samplerType = SamplerType::LinearWrap;
+
     // --- Input state for camera controls ---
     bool  m_isRightMouseDown{ false };
     bool  m_isLeftMouseDown{ false };

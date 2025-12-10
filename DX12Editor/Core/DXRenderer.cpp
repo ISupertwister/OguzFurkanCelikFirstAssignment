@@ -308,6 +308,20 @@ void DXRenderer::Render() noexcept
         ImGui::Separator();
         ImGui::Checkbox("Show grid", &m_showGrid);
         ImGui::Checkbox("Show axis", &m_showAxis);
+
+        // --- Sampler UI ---
+        ImGui::Separator();
+        ImGui::Text("Sampler Type");
+
+        const char* samplerNames[] = { "Linear / Wrap", "Point / Wrap" };
+        int samplerIndex = static_cast<int>(m_samplerType);
+
+        // Update sampler type when user changes the combo.
+        if (ImGui::Combo("Sampler", &samplerIndex, samplerNames, IM_ARRAYSIZE(samplerNames)))
+        {
+            m_samplerType = static_cast<SamplerType>(samplerIndex);
+        }
+
         ImGui::End();
     }
 
@@ -394,7 +408,7 @@ void DXRenderer::Render() noexcept
             m_cmdList->DrawInstanced(m_axisVertexCount, 1, m_gridVertexCount, 0);
         }
     }
-
+    
     // ---------- 2) TEXTURED QUAD (zeminde, XZ düzlemi) ----------
     {
         // Quad şu an XY düzleminde (-0.5..0.5).
