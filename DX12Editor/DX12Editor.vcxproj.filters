@@ -126,7 +126,6 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="README.md" />
     <None Include="LICENCE.md" />
   </ItemGroup>
 </Project>
