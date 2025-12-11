@@ -151,6 +151,11 @@ Steps to Run
 
 📸 Screenshots
 
+### Linear / Wrap
+![LinearWrap](screenshot_linear_wrap.png)
+
+### Point / Wrap
+![PointWrap](screenshot_point_wrap.png)
 
 🔗 Project Repository
 
