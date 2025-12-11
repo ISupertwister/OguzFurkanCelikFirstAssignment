@@ -82,8 +82,8 @@ General	Focus on Quad	F
 Plaintext
 
 DX12Editor/
- ├─ ImGui/                 # ImGui backend / sources
- ├─ Resource Files/        # (icons, textures, etc.)
+ ├─ ImGui/                      # ImGui backend / sources
+ ├─ Resource Files/             # (icons, textures, etc.)
  ├─ Header Files/
  │   ├─ Camera.h
  │   └─ DXMesh.h
