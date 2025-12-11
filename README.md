@@ -151,6 +151,8 @@ Steps to Run
 
 📸 Screenshots
 
+![LinearWrap](DX12Editor/screenshot_linear_wrap.png)
+![PointWrap](DX12Editor/screenshot_point_wrap.png)
 
 🔗 Project Repository
 
