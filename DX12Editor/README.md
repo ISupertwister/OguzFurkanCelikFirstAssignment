@@ -151,7 +151,6 @@ Steps to Run
 
 📸 Screenshots
 
-(Add your screenshots here for the report)
 👑 Author
 
 Oğuz Furkan Çelik 
