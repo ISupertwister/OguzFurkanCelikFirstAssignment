@@ -151,6 +151,11 @@ Steps to Run
 
 📸 Screenshots
 
+
+🔗 Project Repository
+
+GitHub: https://github.com/ISupertwister/OguzFurkanCelikFirstAssignment
+
 👑 Author
 
 Oğuz Furkan Çelik 
