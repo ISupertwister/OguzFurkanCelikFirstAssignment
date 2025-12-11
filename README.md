@@ -1,4 +1,5 @@
 ﻿📝 DX12 Texture Viewer / Mini Editor
+ 
 🎯 Project Overview
 
 This project is a DirectX 12–based mini editor that demonstrates a complete modern rendering pipeline together with essential editor-style camera controls and debugging UI.
