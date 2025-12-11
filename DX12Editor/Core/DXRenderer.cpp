@@ -33,7 +33,7 @@ LRESULT DXRenderer::ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM w
 
 void DXRenderer::OnMouseMove(float dx, float dy)
 {
-    // Comment in English: Accumulate mouse delta for this frame.
+    // Accumulate mouse delta for this frame.
     m_mouseDeltaX += dx;
     m_mouseDeltaY += dy;
 }
@@ -120,7 +120,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     m_width = width;
     m_height = height;
 
-    // Comment in English: Initial camera projection.
+    // Initial camera projection.
     float aspect = (m_height == 0) ? 1.0f : float(m_width) / float(m_height);
     m_camera.SetProjection(XM_PIDIV4, aspect, 0.1f, 1000.0f);
 
@@ -165,11 +165,11 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     if (!CreateRootSignature()) return false;
     if (!CreatePipelineState()) return false;
     if (!CreateConstantBuffer()) return false;
-    if (!CreateTriangleVB()) return false;      // eski raw quad VB (istersen sonra silebiliriz)
+    if (!CreateTriangleVB()) return false;      
     if (!CreateGridVB()) return false;
     if (!CreateCheckerTextureSRV()) return false;
 
-    // >>> DXMesh tabanlı quad'ı burada oluşturuyoruz <<<
+    
     {
         auto* dev = m_device->GetDevice();
         if (!m_quadMesh.InitializeQuad(dev))
@@ -270,7 +270,7 @@ void DXRenderer::Render() noexcept
     }
     else
     {
-        // Comment in English: When ImGui captures the mouse, freeze camera input.
+        // When ImGui captures the mouse, freeze camera input.
         m_camera.SetMovement(false, false, false, false, false, false, false);
         m_wheelTicks = 0.0f;
     }
@@ -279,14 +279,14 @@ void DXRenderer::Render() noexcept
     // FOCUS KEY (F) - SNAP TO QUAD / ORIGIN
     // =========================
     {
-        // Comment in English: Edge-detect F key press using Win32 async state.
+        // Edge-detect F key press using Win32 async state.
         static bool s_wasFDown = false;
         SHORT state = GetAsyncKeyState('F');
         bool isFDown = (state & 0x8000) != 0;
 
         if (isFDown && !s_wasFDown)
         {
-            // Comment in English: Focus on origin (quad center) at a fixed distance.
+            // Focus on origin (quad center) at a fixed distance.
             DirectX::XMFLOAT3 focusTarget{ 0.0f, 0.0f, 0.0f };
             float focusDistance = 10.0f; // Tunable: how far from the quad we end up.
 
@@ -344,7 +344,7 @@ void DXRenderer::Render() noexcept
 
         int samplerIndex = static_cast<int>(m_samplerType);
 
-        // Comment in English: Update sampler type when user changes the combo.
+        // Update sampler type when user changes the combo.
         if (ImGui::Combo("Sampler", &samplerIndex, samplerNames, IM_ARRAYSIZE(samplerNames)))
         {
             // Clamp to valid range (defensive).
@@ -389,7 +389,7 @@ void DXRenderer::Render() noexcept
     // SCENE RENDER
     // =========================
 
-    // Comment in English: CBV+SRV heap (0: CBV, 1: SRV).
+    // CBV+SRV heap (0: CBV, 1: SRV).
     ID3D12DescriptorHeap* sceneHeaps[] = { m_cbvHeap.Get() };
     m_cmdList->SetDescriptorHeaps(1, sceneHeaps);
 
@@ -423,7 +423,7 @@ void DXRenderer::Render() noexcept
         {
             CbMvp cb{};
             XMStoreFloat4x4(&cb.mvp, MVPt);
-            cb.samplerIndex = 0; // Comment in English: Not used for lines, safe default.
+            cb.samplerIndex = 0; // Not used for lines, safe default.
             std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
         }
 
@@ -444,7 +444,7 @@ void DXRenderer::Render() noexcept
 
     // ---------- 2) TEXTURED QUAD (ground plane, XZ) ----------
     {
-        // Comment in English: Quad is defined in XY (-0.5..0.5). Scale and rotate to XZ plane.
+        // Quad is defined in XY (-0.5..0.5). Scale and rotate to XZ plane.
         XMMATRIX M =
             XMMatrixScaling(5.0f, 5.0f, 1.0f) *
             XMMatrixRotationX(-XM_PIDIV2);
@@ -633,7 +633,7 @@ bool DXRenderer::CreateRootSignature() noexcept
     // 1) Descriptor ranges (CBV + SRV)
     // =========================
 
-    // Comment in English: CBV range for b0 (constant buffer with MVP + samplerIndex).
+    // CBV range for b0 (constant buffer with MVP + samplerIndex).
     D3D12_DESCRIPTOR_RANGE rngCBV{};
     rngCBV.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
     rngCBV.NumDescriptors = 1;
@@ -650,7 +650,7 @@ bool DXRenderer::CreateRootSignature() noexcept
     paramCBV.DescriptorTable = tblCBV;
     paramCBV.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; // VS + PS can read CBV
 
-    // Comment in English: SRV range for t0 (checker texture).
+    // SRV range for t0 (checker texture).
     D3D12_DESCRIPTOR_RANGE rngSRV{};
     rngSRV.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     rngSRV.NumDescriptors = 1;
@@ -734,7 +734,7 @@ bool DXRenderer::CreateRootSignature() noexcept
     {
         if (err)
         {
-            // Comment in English: Print error from root signature serialization.
+            // Print error from root signature serialization.
             OutputDebugStringA((const char*)err->GetBufferPointer());
         }
         return false;

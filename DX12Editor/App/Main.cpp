@@ -95,7 +95,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     base << L"DX12 Editor  —  Adapter: " << dx.AdapterDesc();
     SetWindowTextW(window.GetHWND(), base.str().c_str());
 
-    // Optional: FPS/ms in title
+    // FPS/ms in title
     FrameTimer timer;
     double fps = 0.0;
     std::wstringstream title;

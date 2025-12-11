@@ -18,7 +18,7 @@ Window::~Window() {
 }
 
 // =======================================================
-// Create() implementation (eksik olan kısım buydu)
+// Create() implementation 
 // =======================================================
 bool Window::Create() noexcept
 {
@@ -57,7 +57,7 @@ bool Window::Create() noexcept
         nullptr,
         nullptr,
         m_hInstance,
-        this // lpParam → Window* (WndProcSetup içinde alıyoruz)
+        this // lpParam → Window* 
     );
 
     if (!m_hWnd)

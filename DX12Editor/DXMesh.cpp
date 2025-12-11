@@ -12,7 +12,7 @@ bool DXMesh::InitializeQuad(ID3D12Device* device)
     if (!device)
         return false;
 
-    // Comment in English: 2x2 quad centered at origin, in the XY plane.
+    // 2x2 quad centered at origin, in the XY plane.
     // Z = 0; we will place/rotate it with a world matrix in the renderer.
     Vertex vertices[] =
     {
@@ -29,7 +29,7 @@ bool DXMesh::InitializeQuad(ID3D12Device* device)
     const UINT vbSize = static_cast<UINT>(sizeof(vertices));
     m_vertexCount = 6;
 
-    // Comment in English: Create an upload-heap vertex buffer.
+    // Create an upload-heap vertex buffer.
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC   bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vbSize);
 
@@ -48,7 +48,7 @@ bool DXMesh::InitializeQuad(ID3D12Device* device)
         return false;
     }
 
-    // Comment in English: Copy CPU vertex data into the upload buffer.
+    // Copy CPU vertex data into the upload buffer.
     UINT8* mappedData = nullptr;
     CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on CPU.
 
@@ -62,7 +62,7 @@ bool DXMesh::InitializeQuad(ID3D12Device* device)
     std::memcpy(mappedData, vertices, vbSize);
     m_vertexBuffer->Unmap(0, nullptr);
 
-    // Comment in English: Fill vertex buffer view.
+    // Fill vertex buffer view.
     m_vbView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
     m_vbView.StrideInBytes = sizeof(Vertex);
     m_vbView.SizeInBytes = vbSize;

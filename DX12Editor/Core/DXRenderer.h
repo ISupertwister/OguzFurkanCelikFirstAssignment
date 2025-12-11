@@ -36,7 +36,7 @@ public:
     // ImGui Win32 hook
     static LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-    // Comment in English: Let ImGui tell us when it wants to capture the mouse.
+    // Let ImGui tell us when it wants to capture the mouse.
     static bool IsImGuiCapturingMouse() { return ImGui::GetIO().WantCaptureMouse; }
 
     // Input hooks from Window / Win32
@@ -144,7 +144,7 @@ private:
     bool m_showGrid{ true }; // ImGui toggle: show/hide grid
     bool m_showAxis{ true }; // ImGui toggle: show/hide axis
 
-    // Comment in English: Simple sampler type enum for UI (must match HLSL side).
+    // Simple sampler type enum for UI (must match HLSL side).
     enum class SamplerType
     {
         LinearWrap = 0,

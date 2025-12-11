@@ -1,12 +1,12 @@
 Texture2D gTex : register(t0);
 
-// Comment in English: Four individual static samplers (matched with root signature s0..s3).
+// Four individual static samplers (matched with root signature s0..s3).
 SamplerState gSamplerLinearWrap : register(s0);
 SamplerState gSamplerPointWrap : register(s1);
 SamplerState gSamplerLinearClamp : register(s2);
 SamplerState gSamplerPointClamp : register(s3);
 
-// Comment in English: Constant buffer shared with C++.
+// Constant buffer shared with C++.
 cbuffer CbMvp : register(b0)
 {
     float4x4 gMVP; // Not used in PS, but layout must match C++ side.
@@ -27,7 +27,7 @@ float4 main(PSInput i) : SV_Target
 
     float4 tex;
 
-    // Comment in English: Select the correct sampler based on index.
+    // Select the correct sampler based on index.
     if (idx == 0)
     {
         tex = gTex.Sample(gSamplerLinearWrap, i.uv);
