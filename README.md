@@ -1,4 +1,5 @@
 ﻿📝 DX12 Texture Viewer / Mini Editor
+ 
 🎯 Project Overview
 
 This project is a DirectX 12–based mini editor that demonstrates a complete modern rendering pipeline together with essential editor-style camera controls and debugging UI.
@@ -47,6 +48,7 @@ The quad uses UVs to display a checker texture. The user can switch between four
     Point / Clamp (Clamp + Point)
 
 These are implemented via four static samplers in the root signature.
+
 ✔️ Editor-Style Camera
 
 The camera offers Unity-like editing behavior with three distinct modes:
@@ -68,48 +70,83 @@ Fully integrated interface providing:
     Sampler mode selection (Combo box).
 
 ⌨️ Controls
+
 Context	Action	Input
+
 FPS Mode	Look Around	Right Mouse Button + Move
+
 	Move	W / A / S / D
 	Elevate / Descend	E / Q
 	Fast Movement	Shift
 Orbit Mode	Orbit Pivot	Alt + Left Mouse Button
+
 	Zoom	Mouse Wheel
 General	Focus on Quad	F
+
 	Toggle Grid/Axis	ImGui Panel
 	Change Sampler	ImGui Combo
+	
 📁 Project Structure
+
 Plaintext
 
 DX12Editor/
+
  ├─ ImGui/                      # ImGui backend / sources
+ 
  ├─ Resource Files/             # (icons, textures, etc.)
+ 
  ├─ Header Files/
+ 
  │   ├─ Camera.h
+ 
  │   └─ DXMesh.h
+ 
  │
+ 
  ├─ Source Files/
+ 
  │   └─ src/
+ 
  │       ├─ App/
+ 
  │       │   ├─ Main.cpp
+ 
  │       │   ├─ Window.cpp
+ 
  │       │   └─ Window.h
+ 
  │       │
+ 
  │       ├─ Core/
+ 
  │       │   ├─ Camera.cpp
+ 
  │       │   ├─ d3dx12.h
+ 
  │       │   ├─ DXDevice.cpp
+ 
  │       │   ├─ DXDevice.h
+ 
  │       │   ├─ DXMesh.cpp
+ 
  │       │   ├─ DXRenderer.cpp
+ 
  │       │   ├─ DXRenderer.h
+ 
  │       │   └─ FrameTimer.h/cpp
+ 
  │       │
+ 
  │       └─ Shaders/
+ 
  │           ├─ ColorVS.hlsl
+ 
  │           └─ ColorPS.hlsl
+ 
 
 ⚙️ Technical Implementation Notes
+
 Textures and Mipmaps
 
     Procedural Generation: The checkerboard texture shown on the quad is generated procedurally in the shader/CPU code. No external image file (png, jpg, dds) is loaded.
@@ -129,6 +166,7 @@ Other
     Coordinate System: Camera math uses the Left-Handed Coordinate System (DirectX Standard).
 
 🛠️ Build Instructions
+
 Requirements
 
     Visual Studio 2022
@@ -161,5 +199,7 @@ GitHub: https://github.com/ISupertwister/OguzFurkanCelikFirstAssignment
 👑 Author
 
 Oğuz Furkan Çelik 
+
 Advanced Programming for AAA Games 
+
 Universitat Politècnica de Catalunya (UPC)
