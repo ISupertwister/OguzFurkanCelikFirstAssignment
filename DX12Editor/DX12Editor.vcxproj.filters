@@ -125,4 +125,8 @@
       <Filter>Source Files\src\Shaders</Filter>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+    <None Include="LICENCE.md" />
+  </ItemGroup>
 </Project>
