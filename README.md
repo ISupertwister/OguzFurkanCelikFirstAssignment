@@ -161,5 +161,7 @@ GitHub: https://github.com/ISupertwister/OguzFurkanCelikFirstAssignment
 👑 Author
 
 Oğuz Furkan Çelik 
+
 Advanced Programming for AAA Games 
+
 Universitat Politècnica de Catalunya (UPC)
