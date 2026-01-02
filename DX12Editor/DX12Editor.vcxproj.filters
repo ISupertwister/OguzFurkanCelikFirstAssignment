@@ -75,6 +75,9 @@
     <ClInclude Include="Camera.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="RenderTarget.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\Main.cpp">
@@ -114,6 +117,9 @@
       <Filter>Source Files\src\Core</Filter>
     </ClCompile>
     <ClCompile Include="Core\DXRenderer.cpp">
+      <Filter>Source Files\src\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderTarget.cpp">
       <Filter>Source Files\src\Core</Filter>
     </ClCompile>
   </ItemGroup>

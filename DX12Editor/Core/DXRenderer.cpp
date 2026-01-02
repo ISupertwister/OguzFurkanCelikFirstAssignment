@@ -466,6 +466,11 @@ void DXRenderer::Render() noexcept
         m_cmdList->DrawInstanced(6, 1, 0, 0);
     }
 
+    // Scene viewport window
+    ImGui::Begin("Scene");
+    ImGui::Text("Scene viewport will be here");
+    ImGui::End();
+
     // =========================
     // IMGUI DRAW
     // =========================
