@@ -10,6 +10,7 @@
 #include "FrameTimer.h"
 #include "DXMesh.h"
 #include "Camera.h"
+#include "RenderTarget.h"
 
 // ImGui Headers
 #include "imgui/imgui.h" 
@@ -137,7 +138,7 @@ private:
     UINT m_height{ 0 };
     DXMesh m_testMesh;
     DXMesh m_quadMesh;
-
+    RenderTarget m_sceneRenderTarget; // Offscreen render target for Scene viewport
     Camera m_camera;
 
     // Editor flags
