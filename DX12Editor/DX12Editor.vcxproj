@@ -103,7 +103,7 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)src\Core;$(ProjectDir)src\App;$(ProjectDir)Core;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)src\Core;$(ProjectDir)src\App;$(ProjectDir)Core;$(ProjectDir);$(ProjectDir)External;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -124,7 +124,7 @@
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)src\Core;$(ProjectDir)src\App;$(ProjectDir)Core;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)src\Core;$(ProjectDir)src\App;$(ProjectDir)Core;$(ProjectDir);$(ProjectDir)External;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -144,6 +144,10 @@
     <ClInclude Include="Core\FrameTimer.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DXMesh.h" />
+    <ClInclude Include="External\json.hpp" />
+    <ClInclude Include="External\stb_image.h" />
+    <ClInclude Include="External\stb_image_write.h" />
+    <ClInclude Include="External\tiny_gltf.h" />
     <ClInclude Include="ImGui\imconfig.h" />
     <ClInclude Include="ImGui\imgui.h" />
     <ClInclude Include="ImGui\imgui_impl_dx12.h" />
@@ -169,6 +173,7 @@
     <ClCompile Include="ImGui\imgui_tables.cpp" />
     <ClCompile Include="ImGui\imgui_widgets.cpp" />
     <ClCompile Include="RenderTarget.cpp" />
+    <ClCompile Include="TinyGLTF.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="ColorPS.hlsl">
