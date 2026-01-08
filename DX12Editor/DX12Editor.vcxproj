@@ -144,10 +144,12 @@
     <ClInclude Include="Core\FrameTimer.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DXMesh.h" />
+    <ClInclude Include="DXModelMesh.h" />
     <ClInclude Include="External\json.hpp" />
     <ClInclude Include="External\stb_image.h" />
     <ClInclude Include="External\stb_image_write.h" />
     <ClInclude Include="External\tiny_gltf.h" />
+    <ClInclude Include="GLTFLoader.h" />
     <ClInclude Include="ImGui\imconfig.h" />
     <ClInclude Include="ImGui\imgui.h" />
     <ClInclude Include="ImGui\imgui_impl_dx12.h" />
@@ -165,6 +167,8 @@
     <ClCompile Include="Core\DXDevice.cpp" />
     <ClCompile Include="Core\DXRenderer.cpp" />
     <ClCompile Include="DXMesh.cpp" />
+    <ClCompile Include="DXModelMesh.cpp" />
+    <ClCompile Include="GLTFLoader.cpp" />
     <ClCompile Include="ImGui\imgui.cpp" />
     <ClCompile Include="ImGui\imgui_demo.cpp" />
     <ClCompile Include="ImGui\imgui_draw.cpp" />
@@ -217,6 +221,18 @@ copy /Y "%(FullPath)" "$(OutDir)Shaders\%(Filename)%(Extension)"
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\Shaders\%(Filename).cso</ObjectFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)\Shaders\%(Filename).cso</ObjectFileOutput>
+    </FxCompile>
+    <FxCompile Include="PhongPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="PhongVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>

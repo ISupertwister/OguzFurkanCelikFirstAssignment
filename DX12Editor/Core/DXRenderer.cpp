@@ -8,7 +8,7 @@
 #include "DXRenderer.h"
 #include "DXDevice.h"
 #include "d3dx12.h"
-
+#include "GLTFLoader.h"
 // ImGui Headers
 #include "imgui/imgui.h" 
 #include "imgui/imgui_impl_win32.h"
@@ -219,7 +219,16 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     {
         return false;
     }
+    // NOTE: Placeholder path. We'll place duck later under Game/assets.
+    {
+        std::vector<DXModelMesh::Vertex> verts;
+        std::vector<uint32_t> inds;
 
+        if (GLTFLoader::LoadFirstMesh("Game/assets/duck.glb", verts, inds))
+        {
+            m_duckLoaded = m_duckMesh.Initialize(m_device->GetDevice(), verts, inds);
+        }
+    }
     return true;
 }
 
@@ -366,6 +375,16 @@ void DXRenderer::Render() noexcept
             m_samplerType = static_cast<SamplerType>(samplerIndex);
         }
 
+        ImGui::End();
+
+        ImGui::Begin("Lighting");
+        ImGui::DragFloat3("Light Direction", &m_lightDir.x, 0.01f);
+        ImGui::ColorEdit3("Light Color", &m_lightColor.x);
+        ImGui::ColorEdit3("Ambient Color", &m_ambientColor.x);
+        ImGui::Separator();
+        ImGui::ColorEdit3("Diffuse Color", &m_matDiffuse.x);
+        ImGui::ColorEdit3("Specular Color", &m_matSpecular.x);
+        ImGui::SliderFloat("Shininess", &m_matShininess, 1.0f, 256.0f);
         ImGui::End();
     }
     // =========================
@@ -764,7 +783,7 @@ bool DXRenderer::CreateRootSignature() noexcept
     // CBV range for b0 (constant buffer with MVP + samplerIndex).
     D3D12_DESCRIPTOR_RANGE rngCBV{};
     rngCBV.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-    rngCBV.NumDescriptors = 1;
+    rngCBV.NumDescriptors = 2;
     rngCBV.BaseShaderRegister = 0; // b0
     rngCBV.RegisterSpace = 0;
     rngCBV.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -934,6 +953,42 @@ bool DXRenderer::CreatePipelineState() noexcept
 
     return SUCCEEDED(hrTri) && SUCCEEDED(hrLine);
 }
+
+bool DXRenderer::CreatePhongPipelineState() noexcept
+{
+    // Load compiled shaders
+    std::vector<uint8_t> vsData;
+    std::vector<uint8_t> psData;
+
+    if (!LoadFileBinary(L"Shaders/PhongVS.cso", vsData)) return false;
+    if (!LoadFileBinary(L"Shaders/PhongPS.cso", psData)) return false;
+
+    D3D12_INPUT_ELEMENT_DESC layout[] =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    };
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
+    psoDesc.pRootSignature = m_rootSig.Get();
+    psoDesc.VS = { vsData.data(), vsData.size() };
+    psoDesc.PS = { psData.data(), psData.size() };
+    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    psoDesc.SampleMask = UINT_MAX;
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.NumRenderTargets = 1;
+    psoDesc.RTVFormats[0] = m_backbufferFormat;
+    psoDesc.DSVFormat = m_depthFormat;
+    psoDesc.SampleDesc.Count = 1;
+    psoDesc.InputLayout = { layout, _countof(layout) };
+
+    HRESULT hr = m_device->GetDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_psoPhong));
+    return SUCCEEDED(hr);
+}
+
 
 bool DXRenderer::CreateTriangleVB() noexcept {
     const Vertex verts[6] = {

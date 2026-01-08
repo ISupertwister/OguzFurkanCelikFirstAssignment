@@ -11,7 +11,7 @@
 #include "DXMesh.h"
 #include "Camera.h"
 #include "RenderTarget.h"
-
+#include "DXModelMesh.h"
 // ImGui Headers
 #include "imgui/imgui.h" 
 #include "imgui/imgui_impl_win32.h"
@@ -57,6 +57,7 @@ private:
     bool CreateRenderTargets() noexcept;
     bool CreateRootSignature() noexcept;
     bool CreatePipelineState() noexcept;
+    bool CreatePhongPipelineState() noexcept;
     bool CreateTriangleVB() noexcept;
     bool CreateConstantBuffer() noexcept;
     bool CreateDepthResources() noexcept;
@@ -78,7 +79,20 @@ private:
         UINT samplerIndex;          // Which sampler to use in the pixel shader.
         UINT _pad[3];               // Padding to keep constant buffer 16-byte aligned.
     };
+    struct alignas(256) CBPhong
+    {
+        DirectX::XMFLOAT4X4 world;
+        DirectX::XMFLOAT4X4 viewProj;
 
+        DirectX::XMFLOAT3 lightDir; float _pad0;
+        DirectX::XMFLOAT3 lightColor; float _pad1;
+        DirectX::XMFLOAT3 ambientColor; float _pad2;
+
+        DirectX::XMFLOAT3 diffuseColor; float _pad3;
+        DirectX::XMFLOAT3 specularColor; float shininess;
+
+        DirectX::XMFLOAT3 cameraPos; float _pad4;
+    };
 
 
 private:
@@ -124,6 +138,22 @@ private:
     uint8_t* m_cbMapped{ nullptr };
 
     Microsoft::WRL::ComPtr<ID3D12Resource> m_tex;
+    // Phong pipeline
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> m_psoPhong;
+
+    // Phong parameters (editable via ImGui)
+    DirectX::XMFLOAT3 m_lightDir = { 0.3f, -1.0f, 0.2f };
+    DirectX::XMFLOAT3 m_lightColor = { 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT3 m_ambientColor = { 0.05f, 0.05f, 0.08f };
+
+    DirectX::XMFLOAT3 m_matDiffuse = { 1.0f, 0.85f, 0.2f };
+    DirectX::XMFLOAT3 m_matSpecular = { 1.0f, 1.0f, 1.0f };
+    float m_matShininess = 64.0f;
+
+    // Duck transform for ImGuizmo later
+    DirectX::XMFLOAT3 m_duckPos = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 m_duckRot = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 m_duckScale = { 1.0f, 1.0f, 1.0f };
 
     FrameTimer m_timer;
     float m_time{ 0.0f };
@@ -158,7 +188,8 @@ private:
     SamplerType m_samplerType = SamplerType::LinearWrap;
 
 
-    
+    DXModelMesh m_duckMesh;
+    bool m_duckLoaded{ false };
 
     // --- Input state for camera controls ---
     bool  m_isRightMouseDown{ false };
