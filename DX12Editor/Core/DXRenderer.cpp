@@ -4,10 +4,10 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
-
+#include "RenderTarget.h"
 #include "DXRenderer.h"
 #include "DXDevice.h"
-#include <d3dx12.h> 
+#include "d3dx12.h"
 
 // ImGui Headers
 #include "imgui/imgui.h" 
@@ -180,7 +180,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     // IMGUI INTEGRATION
     // ====================================================
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-    heapDesc.NumDescriptors = 1;
+    heapDesc.NumDescriptors = 16;
     heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -207,6 +207,18 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     );
 
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+
+    if (!m_sceneRenderTarget.Initialize(
+        m_device,
+        m_width,
+        m_height,
+        m_backbufferFormat,
+        DXGI_FORMAT_D32_FLOAT,
+        m_imguiSrvHeap.Get(),
+        1))
+    {
+        return false;
+    }
 
     return true;
 }
@@ -356,6 +368,106 @@ void DXRenderer::Render() noexcept
 
         ImGui::End();
     }
+    // =========================
+// PASS 1: RENDER SCENE TO RTT
+// =========================
+    {
+        ID3D12Resource* sceneColor = m_sceneRenderTarget.GetColorResource();
+
+        // Transition: SRV -> RT
+        auto rttToRT = CD3DX12_RESOURCE_BARRIER::Transition(
+            sceneColor,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
+        m_cmdList->ResourceBarrier(1, &rttToRT);
+
+        // Set RTT as render target
+        D3D12_CPU_DESCRIPTOR_HANDLE rttRtv = m_sceneRenderTarget.GetRTV();
+        D3D12_CPU_DESCRIPTOR_HANDLE rttDsv = m_sceneRenderTarget.GetDSV();
+        m_cmdList->OMSetRenderTargets(1, &rttRtv, FALSE, &rttDsv);
+
+        // Clear RTT
+        const float rttClear[4] = { 0.02f, 0.02f, 0.04f, 1.0f };
+        m_cmdList->ClearRenderTargetView(rttRtv, rttClear, 0, nullptr);
+        m_cmdList->ClearDepthStencilView(rttDsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+        // Use same viewport/scissor (later we will match Scene size)
+        m_cmdList->RSSetViewports(1, &m_viewport);
+        m_cmdList->RSSetScissorRects(1, &m_scissor);
+
+        // Descriptor heap for scene draw (CBV/SRV heap)
+        ID3D12DescriptorHeap* sceneHeaps[] = { m_cbvHeap.Get() };
+        m_cmdList->SetDescriptorHeaps(1, sceneHeaps);
+
+        // Root signature
+        m_cmdList->SetGraphicsRootSignature(m_rootSig.Get());
+
+        // Root param 0 = CBV
+        D3D12_GPU_DESCRIPTOR_HANDLE gpuStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
+        m_cmdList->SetGraphicsRootDescriptorTable(0, gpuStart);
+
+        // Root param 1 = SRV (checker SRV is at index 1 in your m_cbvHeap)
+        UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        D3D12_GPU_DESCRIPTOR_HANDLE gpuSrv{ gpuStart.ptr + SIZE_T(inc) };
+        m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);
+
+        // Matrices
+        XMMATRIX V = m_camera.GetViewMatrix();
+        XMMATRIX P = m_camera.GetProjectionMatrix();
+
+        // ----- GRID + AXIS -----
+        {
+            XMMATRIX M = XMMatrixIdentity();
+            XMMATRIX MVPt = XMMatrixTranspose(M * V * P);
+
+            if (m_cbMapped)
+            {
+                CbMvp cb{};
+                XMStoreFloat4x4(&cb.mvp, MVPt);
+                cb.samplerIndex = 0;
+                std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
+            }
+
+            m_cmdList->SetPipelineState(m_psoLines.Get());
+            m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+            m_cmdList->IASetVertexBuffers(0, 1, &m_gridVbView);
+
+            if (m_showGrid && m_gridVertexCount > 0)
+                m_cmdList->DrawInstanced(m_gridVertexCount, 1, 0, 0);
+
+            if (m_showAxis && m_axisVertexCount > 0)
+                m_cmdList->DrawInstanced(m_axisVertexCount, 1, m_gridVertexCount, 0);
+        }
+
+        // ----- TEXTURED QUAD -----
+        {
+            XMMATRIX M =
+                XMMatrixScaling(5.0f, 5.0f, 1.0f) *
+                XMMatrixRotationX(-XM_PIDIV2);
+
+            XMMATRIX MVPt = XMMatrixTranspose(M * V * P);
+
+            if (m_cbMapped)
+            {
+                CbMvp cb{};
+                XMStoreFloat4x4(&cb.mvp, MVPt);
+                cb.samplerIndex = static_cast<UINT>(m_samplerType);
+                std::memcpy(m_cbMapped, &cb, sizeof(CbMvp));
+            }
+
+            m_cmdList->SetPipelineState(m_pso.Get());
+            m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            m_cmdList->IASetVertexBuffers(0, 1, &m_vbView);
+            m_cmdList->DrawInstanced(6, 1, 0, 0);
+        }
+
+        // Transition: RT -> SRV (for ImGui::Image)
+        auto rttToSrv = CD3DX12_RESOURCE_BARRIER::Transition(
+            sceneColor,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        m_cmdList->ResourceBarrier(1, &rttToSrv);
+    }
 
     // =========================
     // BACKBUFFER SETUP
@@ -468,7 +580,17 @@ void DXRenderer::Render() noexcept
 
     // Scene viewport window
     ImGui::Begin("Scene");
-    ImGui::Text("Scene viewport will be here");
+    // Scene panel size (content region)
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    if (avail.x < 1.0f) avail.x = 1.0f;
+    if (avail.y < 1.0f) avail.y = 1.0f;
+
+    // DX12 ImGui backend expects ImTextureID = GPU descriptor handle pointer
+    ImTextureID sceneTexId = (ImTextureID)m_sceneRenderTarget.GetSRVGpu().ptr;
+
+    // Display the RTT
+    ImGui::Image(sceneTexId, avail);
+
     ImGui::End();
 
     // =========================
