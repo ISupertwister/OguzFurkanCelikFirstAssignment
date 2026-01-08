@@ -579,6 +579,7 @@ void DXRenderer::Render() noexcept
     }
 
     // Scene viewport window
+    ImGui::SetNextWindowSize(ImVec2(600, 400), ImGuiCond_FirstUseEver);
     ImGui::Begin("Scene");
     // Scene panel size (content region)
     ImVec2 avail = ImGui::GetContentRegionAvail();
