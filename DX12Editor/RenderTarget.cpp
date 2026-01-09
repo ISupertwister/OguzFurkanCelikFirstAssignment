@@ -125,7 +125,7 @@ bool RenderTarget::CreateResources()
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         &depthTex,
-        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        D3D12_RESOURCE_STATE_COMMON,
         &clearDepth,
         IID_PPV_ARGS(&m_depth))))
         return false;

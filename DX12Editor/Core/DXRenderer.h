@@ -63,6 +63,7 @@ private:
     bool CreateDepthResources() noexcept;
     bool CreateCheckerTextureSRV() noexcept;
     bool CreateGridVB() noexcept;
+    bool m_sceneFirstFrame = true;
     bool LoadFileBinary(const wchar_t* path, std::vector<uint8_t>& data) noexcept;
     void WaitForGpu() noexcept;
 

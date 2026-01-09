@@ -114,7 +114,11 @@ DXRenderer::~DXRenderer() noexcept {
 // --------------------------------------------------------
 bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height) noexcept {
     assert(hwnd && device);
-
+    auto FailStep = [&](const wchar_t* msg) -> bool
+        {
+            MessageBoxW(m_hwnd, msg, L"DXRenderer::Initialize failed at:", MB_OK | MB_ICONERROR);
+            return false;
+        };
     m_hwnd = hwnd;
     m_device = device;
     m_width = width;
@@ -125,11 +129,11 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     m_camera.SetProjection(XM_PIDIV4, aspect, 0.1f, 1000.0f);
 
     // Basic GPU Objects
-    if (!CreateCommandQueue()) return false;
-    if (!CreateSwapChain(hwnd, width, height)) return false;
-    if (!CreateRTVDescriptorHeap()) return false;
-    if (!CreateRenderTargets()) return false;
-    if (!CreateDepthResources()) return false;
+    if (!CreateCommandQueue())      return FailStep(L"CreateCommandQueue");
+    if (!CreateSwapChain(hwnd, width, height)) return FailStep(L"CreateSwapChain");
+    if (!CreateRTVDescriptorHeap()) return FailStep(L"CreateRTVDescriptorHeap");
+    if (!CreateRenderTargets())     return FailStep(L"CreateRenderTargets");
+    if (!CreateDepthResources())    return FailStep(L"CreateDepthResources");
 
     // Command list creator
     if (FAILED(m_device->GetDevice()->CreateCommandAllocator(
@@ -162,12 +166,13 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     m_scissor = { 0, 0, int(width), int(height) };
 
     // Pipeline and sources
-    if (!CreateRootSignature()) return false;
-    if (!CreatePipelineState()) return false;
-    if (!CreateConstantBuffer()) return false;
-    if (!CreateTriangleVB()) return false;      
-    if (!CreateGridVB()) return false;
-    if (!CreateCheckerTextureSRV()) return false;
+    if (!CreateRootSignature())     return FailStep(L"CreateRootSignature");
+    if (!CreatePipelineState())     return FailStep(L"CreatePipelineState");
+    if (!CreatePhongPipelineState())return FailStep(L"CreatePhongPipelineState");
+    if (!CreateConstantBuffer())    return FailStep(L"CreateConstantBuffer");
+    if (!CreateTriangleVB())        return FailStep(L"CreateTriangleVB");
+    if (!CreateGridVB())            return FailStep(L"CreateGridVB");
+    if (!CreateCheckerTextureSRV()) return FailStep(L"CreateCheckerTextureSRV");
 
     
     {
@@ -217,7 +222,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
         m_imguiSrvHeap.Get(),
         1))
     {
-        return false;
+        return FailStep(L"m_sceneRenderTarget.Initialize");
     }
     // NOTE: Placeholder path. We'll place duck later under Game/assets.
     {
@@ -394,9 +399,13 @@ void DXRenderer::Render() noexcept
         ID3D12Resource* sceneColor = m_sceneRenderTarget.GetColorResource();
 
         // Transition: SRV -> RT
+        D3D12_RESOURCE_STATES sceneBefore =
+            m_sceneFirstFrame ? D3D12_RESOURCE_STATE_COMMON
+            : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
         auto rttToRT = CD3DX12_RESOURCE_BARRIER::Transition(
             sceneColor,
-            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+            sceneBefore,
             D3D12_RESOURCE_STATE_RENDER_TARGET);
         m_cmdList->ResourceBarrier(1, &rttToRT);
 
@@ -427,7 +436,7 @@ void DXRenderer::Render() noexcept
 
         // Root param 1 = SRV (checker SRV is at index 1 in your m_cbvHeap)
         UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        D3D12_GPU_DESCRIPTOR_HANDLE gpuSrv{ gpuStart.ptr + SIZE_T(inc) };
+        D3D12_GPU_DESCRIPTOR_HANDLE gpuSrv{ gpuStart.ptr + SIZE_T(inc) * 2 };
         m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);
 
         // Matrices
@@ -479,6 +488,53 @@ void DXRenderer::Render() noexcept
             m_cmdList->IASetVertexBuffers(0, 1, &m_vbView);
             m_cmdList->DrawInstanced(6, 1, 0, 0);
         }
+        // ----- DUCK (PHONG) -----
+        if (m_duckLoaded)
+        {
+            // Descriptor handles
+            D3D12_GPU_DESCRIPTOR_HANDLE gpuCbv0 = gpuStart;                   // index 0
+            D3D12_GPU_DESCRIPTOR_HANDLE gpuCbv1{ gpuStart.ptr + SIZE_T(inc) }; // index 1
+
+            // Fill CBPhong into mapped buffer at offset cbMvpSize
+            const UINT cbMvpSize = (sizeof(CbMvp) + 255) & ~255u;
+
+            CBPhong* cbp = reinterpret_cast<CBPhong*>(
+                reinterpret_cast<uint8_t*>(m_cbMapped) + cbMvpSize);
+
+            XMMATRIX Vp = m_camera.GetViewMatrix();
+            XMMATRIX Pp = m_camera.GetProjectionMatrix();
+            XMMATRIX VP = Vp * Pp;
+
+            XMMATRIX S = XMMatrixScaling(m_duckScale.x, m_duckScale.y, m_duckScale.z);
+            XMMATRIX R = XMMatrixRotationRollPitchYaw(m_duckRot.x, m_duckRot.y, m_duckRot.z);
+            XMMATRIX T = XMMatrixTranslation(m_duckPos.x, m_duckPos.y, m_duckPos.z);
+            XMMATRIX W = S * R * T;
+
+            XMStoreFloat4x4(&cbp->world, XMMatrixTranspose(W));
+            XMStoreFloat4x4(&cbp->viewProj, XMMatrixTranspose(VP));
+
+            cbp->lightDir = m_lightDir;
+            cbp->lightColor = m_lightColor;
+            cbp->ambientColor = m_ambientColor;
+            cbp->diffuseColor = m_matDiffuse;
+            cbp->specularColor = m_matSpecular;
+            cbp->shininess = m_matShininess;
+
+            cbp->cameraPos = m_camera.GetPosition();
+
+            // Phong pipeline
+            m_cmdList->SetPipelineState(m_psoPhong.Get());
+            m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+            // Bind CBV1 (Phong constants)
+            m_cmdList->SetGraphicsRootDescriptorTable(0, gpuCbv1);
+
+            // Draw
+            m_duckMesh.Draw(m_cmdList.Get());
+
+            // IMPORTANT: Restore CBV0 for anything after this if needed
+            m_cmdList->SetGraphicsRootDescriptorTable(0, gpuCbv0);
+        }
 
         // Transition: RT -> SRV (for ImGui::Image)
         auto rttToSrv = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -486,6 +542,7 @@ void DXRenderer::Render() noexcept
             D3D12_RESOURCE_STATE_RENDER_TARGET,
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         m_cmdList->ResourceBarrier(1, &rttToSrv);
+        m_sceneFirstFrame = false;
     }
 
     // =========================
@@ -1096,8 +1153,13 @@ bool DXRenderer::CreateGridVB() noexcept
     return true;
 }
 
-bool DXRenderer::CreateConstantBuffer() noexcept {
-    m_cbSize = (sizeof(CbMvp) + 255) & ~255u;
+bool DXRenderer::CreateConstantBuffer() noexcept
+{
+    const UINT cbMvpSize = (sizeof(CbMvp) + 255) & ~255u;
+    const UINT cbPhongSize = (sizeof(CBPhong) + 255) & ~255u;
+
+    m_cbSize = cbMvpSize + cbPhongSize;
+
     D3D12_HEAP_PROPERTIES heap{ D3D12_HEAP_TYPE_UPLOAD };
     D3D12_RESOURCE_DESC buf = CD3DX12_RESOURCE_DESC::Buffer(m_cbSize);
 
@@ -1105,22 +1167,43 @@ bool DXRenderer::CreateConstantBuffer() noexcept {
         &heap, D3D12_HEAP_FLAG_NONE, &buf, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_cbUpload))))
         return false;
 
-    if (FAILED(m_cbUpload->Map(0, nullptr, reinterpret_cast<void**>(&m_cbMapped)))) return false;
+    if (FAILED(m_cbUpload->Map(0, nullptr, reinterpret_cast<void**>(&m_cbMapped))))
+        return false;
 
     D3D12_DESCRIPTOR_HEAP_DESC h{};
     h.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    h.NumDescriptors = 2; // CBV + SRV
+    h.NumDescriptors = 3; // CBV0 + CBV1 + SRV0
     h.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
-    if (FAILED(m_device->GetDevice()->CreateDescriptorHeap(&h, IID_PPV_ARGS(&m_cbvHeap)))) return false;
+    if (FAILED(m_device->GetDevice()->CreateDescriptorHeap(&h, IID_PPV_ARGS(&m_cbvHeap))))
+        return false;
 
-    D3D12_CONSTANT_BUFFER_VIEW_DESC cbv{};
-    cbv.BufferLocation = m_cbUpload->GetGPUVirtualAddress();
-    cbv.SizeInBytes = m_cbSize;
-    m_device->GetDevice()->CreateConstantBufferView(&cbv, m_cbvHeap->GetCPUDescriptorHandleForHeapStart());
+    const UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    // CBV0 (CbMvp) at offset 0
+    {
+        D3D12_CONSTANT_BUFFER_VIEW_DESC cbv{};
+        cbv.BufferLocation = m_cbUpload->GetGPUVirtualAddress() + 0;
+        cbv.SizeInBytes = cbMvpSize;
+
+        auto cpu = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
+        m_device->GetDevice()->CreateConstantBufferView(&cbv, cpu);
+    }
+
+    // CBV1 (CBPhong) at offset cbMvpSize
+    {
+        D3D12_CONSTANT_BUFFER_VIEW_DESC cbv{};
+        cbv.BufferLocation = m_cbUpload->GetGPUVirtualAddress() + cbMvpSize;
+        cbv.SizeInBytes = cbPhongSize;
+
+        auto cpu = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
+        cpu.ptr += SIZE_T(inc); // index 1
+        m_device->GetDevice()->CreateConstantBufferView(&cbv, cpu);
+    }
 
     return true;
 }
+
 
 bool DXRenderer::CreateCheckerTextureSRV() noexcept {
     const UINT W = 256; const UINT H = 256;

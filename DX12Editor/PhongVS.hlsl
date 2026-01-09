@@ -14,6 +14,8 @@ cbuffer CBPhong : register(b0)
     float _pad3;
     float3 gSpecularColor;
     float gShininess;
+
+    float3 gCameraPos;
     float _pad4;
 };
 
@@ -35,12 +37,11 @@ VSOutput main(VSInput i)
 {
     VSOutput o;
 
-    float4 worldPos = mul(float4(i.pos, 1.0f), gWorld);
-    o.worldPos = worldPos.xyz;
+    float4 wp = mul(float4(i.pos, 1.0f), gWorld);
+    o.worldPos = wp.xyz;
 
-    // Normal transform (assumes uniform scale for assignment).
     o.normalW = normalize(mul(float4(i.norm, 0.0f), gWorld).xyz);
 
-    o.posH = mul(worldPos, gViewProj);
+    o.posH = mul(wp, gViewProj);
     return o;
 }
