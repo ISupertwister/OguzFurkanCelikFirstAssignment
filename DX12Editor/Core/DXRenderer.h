@@ -209,4 +209,5 @@ private:
     float m_mouseDeltaY{ 0.0f };
     float m_wheelTicks{ 0.0f };
     bool m_imguiInitialized = false;
+    int m_gizmoOp = 0; // 0:T, 1:R, 2:S
 };

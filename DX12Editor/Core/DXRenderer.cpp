@@ -390,6 +390,22 @@ void DXRenderer::Render() noexcept
         ImGui::ColorEdit3("Specular Color", &m_matSpecular.x);
         ImGui::SliderFloat("Shininess", &m_matShininess, 1.0f, 256.0f);
         ImGui::End();
+
+        ImGui::Begin("Transform");
+        ImGui::DragFloat3("Position", &m_duckPos.x, 0.01f);
+        ImGui::DragFloat3("Rotation", &m_duckRot.x, 0.01f);
+        ImGui::DragFloat3("Scale", &m_duckScale.x, 0.01f);
+
+        ImGui::Separator();
+        // Gizmo operation selection (we'll use this in Commit #3)
+        ImGui::Text("Gizmo");
+        if (ImGui::RadioButton("Translate", m_gizmoOp == 0)) m_gizmoOp = 0;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Rotate", m_gizmoOp == 1)) m_gizmoOp = 1;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Scale", m_gizmoOp == 2)) m_gizmoOp = 2;
+
+        ImGui::End();
     }
     // =========================
 // PASS 1: RENDER SCENE TO RTT
@@ -651,6 +667,56 @@ void DXRenderer::Render() noexcept
         m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         m_cmdList->IASetVertexBuffers(0, 1, &m_vbView);
         m_cmdList->DrawInstanced(6, 1, 0, 0);
+    }
+    // ---------- 3) DUCK (PHONG) ----------
+    if (m_duckLoaded)
+    {
+        // Descriptor handles
+        const UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+        D3D12_GPU_DESCRIPTOR_HANDLE gpuStart = m_cbvHeap->GetGPUDescriptorHandleForHeapStart();
+        D3D12_GPU_DESCRIPTOR_HANDLE gpuCbv0 = gpuStart; // index 0 (CbMvp)
+        D3D12_GPU_DESCRIPTOR_HANDLE gpuCbv1{ gpuStart.ptr + SIZE_T(inc) }; // index 1 (CBPhong)
+
+        // Fill CBPhong into mapped buffer at offset cbMvpSize
+        const UINT cbMvpSize = (sizeof(CbMvp) + 255) & ~255u;
+
+        CBPhong* cbp = reinterpret_cast<CBPhong*>(
+            reinterpret_cast<uint8_t*>(m_cbMapped) + cbMvpSize);
+
+        XMMATRIX Vp = m_camera.GetViewMatrix();
+        XMMATRIX Pp = m_camera.GetProjectionMatrix();
+        XMMATRIX VP = Vp * Pp;
+
+        XMMATRIX S = XMMatrixScaling(m_duckScale.x, m_duckScale.y, m_duckScale.z);
+        XMMATRIX R = XMMatrixRotationRollPitchYaw(m_duckRot.x, m_duckRot.y, m_duckRot.z);
+        XMMATRIX T = XMMatrixTranslation(m_duckPos.x, m_duckPos.y, m_duckPos.z);
+        XMMATRIX W = S * R * T;
+
+        XMStoreFloat4x4(&cbp->world, XMMatrixTranspose(W));
+        XMStoreFloat4x4(&cbp->viewProj, XMMatrixTranspose(VP));
+
+        cbp->lightDir = m_lightDir;
+        cbp->lightColor = m_lightColor;
+        cbp->ambientColor = m_ambientColor;
+        cbp->diffuseColor = m_matDiffuse;
+        cbp->specularColor = m_matSpecular;
+        cbp->shininess = m_matShininess;
+        cbp->cameraPos = m_camera.GetPosition();
+
+        // Phong pipeline
+        m_cmdList->SetPipelineState(m_psoPhong.Get());
+        m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+        // Bind CBV1 (Phong constants)
+        m_cmdList->SetGraphicsRootDescriptorTable(0, gpuCbv1);
+
+        // Draw
+        m_duckMesh.Draw(m_cmdList.Get());
+
+        // Restore CBV0 if other draws need it later
+        m_cmdList->SetGraphicsRootDescriptorTable(0, gpuCbv0);
     }
 
     // Scene viewport window
