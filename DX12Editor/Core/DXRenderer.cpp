@@ -1188,12 +1188,14 @@ bool DXRenderer::CreatePhongPipelineState() noexcept
 
 bool DXRenderer::CreateTriangleVB() noexcept {
     const Vertex verts[6] = {
-        { XMFLOAT3(-0.5f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(1.0f, 1.0f) },
-        { XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(0,0,1), XMFLOAT2(0.0f, 1.0f) },
-        { XMFLOAT3(-0.5f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.0f, 0.0f) },
-        { XMFLOAT3(0.5f,  0.5f, 0.0f), XMFLOAT3(0,1,1), XMFLOAT2(1.0f, 0.0f) },
-        { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(1.0f, 1.0f) },
+    { XMFLOAT3(-0.5f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.0f, 0.0f) }, // TL
+    { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(4.0f, 4.0f) }, // BR
+    { XMFLOAT3(-0.5f, -0.5f, 0.0f), XMFLOAT3(0,0,1), XMFLOAT2(0.0f, 4.0f) }, // BL
+
+    // Triangle 2
+    { XMFLOAT3(-0.5f,  0.5f, 0.0f), XMFLOAT3(1,0,0), XMFLOAT2(0.0f, 0.0f) }, // TL
+    { XMFLOAT3(0.5f,  0.5f, 0.0f), XMFLOAT3(0,1,1), XMFLOAT2(4.0f, 0.0f) }, // TR
+    { XMFLOAT3(0.5f, -0.5f, 0.0f), XMFLOAT3(0,1,0), XMFLOAT2(4.0f, 4.0f) }, // BR
     };
 
     const UINT vbSize = sizeof(verts);

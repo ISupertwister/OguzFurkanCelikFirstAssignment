@@ -3,7 +3,7 @@
 #include <vector>
 #include "DXModelMesh.h"
 
-// Minimal glTF loader for assignment: loads first mesh/primitive with POSITION/NORMAL/TEXCOORD_0.
+// loads first mesh/primitive with POSITION/NORMAL/TEXCOORD_0.
 namespace GLTFLoader
 {
     bool LoadFirstMesh(
