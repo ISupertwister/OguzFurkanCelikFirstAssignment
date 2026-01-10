@@ -145,6 +145,7 @@
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DXMesh.h" />
     <ClInclude Include="DXModelMesh.h" />
+    <ClInclude Include="External\ImGuizmo.h" />
     <ClInclude Include="External\json.hpp" />
     <ClInclude Include="External\stb_image.h" />
     <ClInclude Include="External\stb_image_write.h" />
@@ -168,6 +169,7 @@
     <ClCompile Include="Core\DXRenderer.cpp" />
     <ClCompile Include="DXMesh.cpp" />
     <ClCompile Include="DXModelMesh.cpp" />
+    <ClCompile Include="External\ImGuizmo.cpp" />
     <ClCompile Include="GLTFLoader.cpp" />
     <ClCompile Include="ImGui\imgui.cpp" />
     <ClCompile Include="ImGui\imgui_demo.cpp" />

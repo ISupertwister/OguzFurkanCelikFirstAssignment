@@ -13,6 +13,7 @@
 #include "imgui/imgui.h" 
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx12.h"
+#include "ImGuizmo.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -196,6 +197,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigWindowsMoveFromTitleBarOnly = true;
     ImGui::StyleColorsDark();
 
     // 2) Platform backend (Win32)
@@ -338,7 +340,7 @@ void DXRenderer::Render() noexcept
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
-
+    ImGuizmo::BeginFrame();
     // Info window
     {
         double fps = 0.0;
@@ -726,13 +728,78 @@ void DXRenderer::Render() noexcept
     ImVec2 avail = ImGui::GetContentRegionAvail();
     if (avail.x < 1.0f) avail.x = 1.0f;
     if (avail.y < 1.0f) avail.y = 1.0f;
-
+    ImVec2 scenePos = ImGui::GetCursorScreenPos();
     // DX12 ImGui backend expects ImTextureID = GPU descriptor handle pointer
     ImTextureID sceneTexId = (ImTextureID)m_sceneRenderTarget.GetSRVGpu().ptr;
 
     // Display the RTT
     ImGui::Image(sceneTexId, avail);
+    ImVec2 imageMin = ImGui::GetItemRectMin();
+    ImVec2 imageMax = ImGui::GetItemRectMax();
+    ImVec2 imageSize = ImVec2(
+        imageMax.x - imageMin.x,
+        imageMax.y - imageMin.y
+    );
+    // =========================
+    // IMGUIZMO
+    // =========================
+    ImGuizmo::SetOrthographic(false);
+    ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
+    ImGuizmo::SetRect(scenePos.x, scenePos.y, avail.x, avail.y);
+    // Camera matrices
+    DirectX::XMMATRIX Vg = m_camera.GetViewMatrix();
+    DirectX::XMMATRIX Pg = m_camera.GetProjectionMatrix();
 
+    // Duck transform
+    DirectX::XMMATRIX Sg = XMMatrixScaling(
+        m_duckScale.x,
+        m_duckScale.y,
+        m_duckScale.z
+    );
+    DirectX::XMMATRIX Rg = XMMatrixRotationRollPitchYaw(
+        m_duckRot.x,
+        m_duckRot.y,
+        m_duckRot.z
+    );
+    DirectX::XMMATRIX Tg = XMMatrixTranslation(
+        m_duckPos.x,
+        m_duckPos.y,
+        m_duckPos.z
+    );
+    DirectX::XMMATRIX Wg = Sg * Rg * Tg;
+    DirectX::XMFLOAT4X4 viewF, projF, worldF;
+    XMStoreFloat4x4(&viewF, Vg);
+    XMStoreFloat4x4(&projF, Pg);
+    XMStoreFloat4x4(&worldF, Wg);
+    ImGuizmo::OPERATION gizmoOp = ImGuizmo::TRANSLATE;
+    if (m_gizmoOp == 1) gizmoOp = ImGuizmo::ROTATE;
+    if (m_gizmoOp == 2) gizmoOp = ImGuizmo::SCALE;
+    ImGuizmo::Manipulate(
+        &viewF.m[0][0],
+        &projF.m[0][0],
+        gizmoOp,
+        ImGuizmo::WORLD,
+        &worldF.m[0][0]
+    );
+    if (ImGuizmo::IsUsing())
+    {
+        float t[3], rDeg[3], s[3];
+        ImGuizmo::DecomposeMatrixToComponents(
+            &worldF.m[0][0],
+            t, rDeg, s
+        );
+
+        m_duckPos = { t[0], t[1], t[2] };
+
+        // ImGuizmo gives rotation in DEGREES
+        m_duckRot = {
+            XMConvertToRadians(rDeg[0]),
+            XMConvertToRadians(rDeg[1]),
+            XMConvertToRadians(rDeg[2])
+        };
+
+        m_duckScale = { s[0], s[1], s[2] };
+    }
     ImGui::End();
 
     // =========================
