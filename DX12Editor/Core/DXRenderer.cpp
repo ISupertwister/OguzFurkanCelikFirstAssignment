@@ -174,7 +174,7 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
     if (!CreateGridVB())            return FailStep(L"CreateGridVB");
     if (!CreateCheckerTextureSRV()) return FailStep(L"CreateCheckerTextureSRV");
 
-    
+
     {
         auto* dev = m_device->GetDevice();
         if (!m_quadMesh.InitializeQuad(dev))
@@ -210,7 +210,6 @@ bool DXRenderer::Initialize(HWND hwnd, DXDevice* device, UINT width, UINT height
         m_imguiSrvHeap->GetCPUDescriptorHandleForHeapStart(),
         m_imguiSrvHeap->GetGPUDescriptorHandleForHeapStart()
     );
-
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
 
     if (!m_sceneRenderTarget.Initialize(
@@ -594,7 +593,7 @@ void DXRenderer::Render() noexcept
     // Root parameter 1 = SRV (checker texture)
     UINT inc = m_device->GetDevice()->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuSrv{ gpuStart.ptr + SIZE_T(inc) };
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuSrv{ gpuStart.ptr + SIZE_T(inc) * 2};
     m_cmdList->SetGraphicsRootDescriptorTable(1, gpuSrv);
 
     using namespace DirectX;
@@ -1013,12 +1012,19 @@ bool DXRenderer::CreatePipelineState() noexcept
 
 bool DXRenderer::CreatePhongPipelineState() noexcept
 {
+    auto shaderPath = [](const wchar_t* file) -> std::wstring {
+        wchar_t exe[MAX_PATH];
+        GetModuleFileNameW(nullptr, exe, MAX_PATH);
+        std::filesystem::path p(exe);
+        p = p.parent_path() / L"Shaders" / file;
+        return p.wstring();
+        };
     // Load compiled shaders
     std::vector<uint8_t> vsData;
     std::vector<uint8_t> psData;
 
-    if (!LoadFileBinary(L"Shaders/PhongVS.cso", vsData)) return false;
-    if (!LoadFileBinary(L"Shaders/PhongPS.cso", psData)) return false;
+    if (!LoadFileBinary(shaderPath(L"PhongVS.cso").c_str(), vsData)) return false;
+    if (!LoadFileBinary(shaderPath(L"PhongPS.cso").c_str(), psData)) return false;
 
     D3D12_INPUT_ELEMENT_DESC layout[] =
     {
@@ -1249,7 +1255,7 @@ bool DXRenderer::CreateCheckerTextureSRV() noexcept {
     D3D12_CPU_DESCRIPTOR_HANDLE cpuStart = m_cbvHeap->GetCPUDescriptorHandleForHeapStart();
     UINT inc2 = m_device->GetDevice()->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    D3D12_CPU_DESCRIPTOR_HANDLE cpuSrv{ cpuStart.ptr + SIZE_T(inc2) };
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuSrv{ cpuStart.ptr + SIZE_T(inc2) * 2 };
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
     srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;

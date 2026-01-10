@@ -154,7 +154,7 @@ private:
     // Duck transform for ImGuizmo later
     DirectX::XMFLOAT3 m_duckPos = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 m_duckRot = { 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_duckScale = { 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT3 m_duckScale = { 0.01f, 0.01f, 0.01f };
 
     FrameTimer m_timer;
     float m_time{ 0.0f };
@@ -208,4 +208,5 @@ private:
     float m_mouseDeltaX{ 0.0f };
     float m_mouseDeltaY{ 0.0f };
     float m_wheelTicks{ 0.0f };
+    bool m_imguiInitialized = false;
 };
