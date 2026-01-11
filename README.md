@@ -1,205 +1,134 @@
-﻿📝 DX12 Texture Viewer / Mini Editor
- 
+📝 DX12 Editor / Mini Scene Viewer (Assignment 2)
+
 🎯 Project Overview
 
-This project is a DirectX 12–based mini editor that demonstrates a complete modern rendering pipeline together with essential editor-style camera controls and debugging UI.
+This project is a DirectX 12–based mini editor and scene viewer developed as part of the **Advanced Programming for AAA Games** course at **UPC**.
 
-It was developed as part of the Advanced Programming for AAA Games course at UPC.
+The goal of this assignment is to extend a basic DX12 renderer into an editor-style application featuring offscreen rendering, scene visualization, object manipulation, and real-time debugging tools.
 
-The application provides:
+The application demonstrates a modern DirectX 12 rendering pipeline combined with editor-style camera controls and ImGui-based UI.
 
-    A textured quad rendered with a procedural checker pattern.
-
-    A full grid + axis helper for world orientation.
-
-    A complete FPS / Orbit camera system.
-
-    Real-time sampling mode switching (4 modes).
-
-    ImGui-based debugging panel.
+---
 
 🖼️ Main Features
-✔️ DirectX 12 Rendering Pipeline
 
-The renderer implements a complete, modern DX12 workflow:
+✔️ **DirectX 12 Rendering Pipeline**
+- Device & adapter selection
+- Swap chain with double buffering
+- Command queue, allocator & command lists
+- Fence-based GPU synchronization
+- RTV / DSV descriptor heaps
+- Root signature & multiple PSOs
+- Depth buffer support
 
-    Device + Adapter selection.
+✔️ **Offscreen Rendering (Render To Texture)**
+- Scene is rendered into a custom render target
+- The render target is displayed inside an ImGui "Scene" window
+- Enables editor-style viewport rendering
 
-    Swap chain & double buffering.
+✔️ **Textured Ground Quad**
+- Procedural checkerboard texture
+- UVs extended beyond [0–1] range to visualize sampler behavior
+- Real-time sampler switching via ImGui
 
-    Command queue, allocator, and command lists.
+✔️ **Sampler Modes (Static Samplers)**
+Four sampler modes selectable at runtime:
+- Linear / Wrap
+- Point / Wrap
+- Linear / Clamp
+- Point / Clamp
 
-    Fence synchronization.
+Implemented using **static samplers inside the root signature**.
 
-    RTV/DSV descriptor heaps & Depth buffer.
+✔️ **Phong-Shaded Mesh Rendering**
+- GLTF mesh loading (Duck model)
+- Per-pixel Phong lighting
+- Adjustable material & light parameters
+- World, View, Projection matrices
+- Camera position passed to shader
 
-    Root signature + Pipeline State Objects (PSO).
+✔️ **Editor-Style Camera System**
+- FPS Mode (WASD + mouse look)
+- Orbit Mode (Alt + LMB)
+- Focus Mode (F key)
+- Mouse wheel zoom
+- Smooth movement & rotation
 
-✔️ Textured Quad & Sampler Modes
+✔️ **ImGui Debug Interface**
+- FPS counter
+- Camera position display
+- Grid & axis toggles
+- Sampler selection combo box
+- Lighting & material controls
+- Transform controls (position / rotation / scale)
 
-The quad uses UVs to display a checker texture. The user can switch between four texture sampling modes in real-time via the UI:
+✔️ **ImGuizmo Integration**
+- Translate / Rotate / Scale gizmos
+- Object manipulation inside Scene viewport
+- World-space transformations
 
-    Linear / Wrap (Wrap + Bilinear)
-
-    Point / Wrap (Wrap + Point)
-
-    Linear / Clamp (Clamp + Bilinear)
-
-    Point / Clamp (Clamp + Point)
-
-These are implemented via four static samplers in the root signature.
-
-✔️ Editor-Style Camera
-
-The camera offers Unity-like editing behavior with three distinct modes:
-
-    FPS Mode: Standard WASD movement and mouse look.
-
-    Orbit Mode: Rotate around a pivot point.
-
-    Focus Mode: Instantly snaps the camera to the target object.
-
-✔️ ImGui Debug UI
-
-Fully integrated interface providing:
-
-    FPS counter & Camera position data.
-
-    Toggles for Grid and Axis rendering.
-
-    Sampler mode selection (Combo box).
+---
 
 ⌨️ Controls
 
-Context	Action	Input
+| Action | Input |
+|------|------|
+| Look Around (FPS) | Right Mouse Button + Move |
+| Move | W / A / S / D |
+| Up / Down | E / Q |
+| Fast Move | Shift |
+| Orbit Camera | Alt + Left Mouse Button |
+| Zoom | Mouse Wheel |
+| Focus Object | F |
+| Gizmo Translate | ImGui |
+| Gizmo Rotate | ImGui |
+| Gizmo Scale | ImGui |
 
-FPS Mode	Look Around	Right Mouse Button + Move
+---
 
-	Move	W / A / S / D
-	Elevate / Descend	E / Q
-	Fast Movement	Shift
-Orbit Mode	Orbit Pivot	Alt + Left Mouse Button
-
-	Zoom	Mouse Wheel
-General	Focus on Quad	F
-
-	Toggle Grid/Axis	ImGui Panel
-	Change Sampler	ImGui Combo
-	
 📁 Project Structure
 
-Plaintext
-
 DX12Editor/
+├─ ImGui/
+├─ src/
+│ ├─ App/
+│ │ ├─ Main.cpp
+│ │ ├─ Window.cpp
+│ │ └─ Window.h
+│ ├─ Core/
+│ │ ├─ Camera.cpp / .h
+│ │ ├─ DXDevice.cpp / .h
+│ │ ├─ DXRenderer.cpp / .h
+│ │ ├─ RenderTarget.cpp / .h
+│ │ ├─ DXModelMesh.cpp / .h
+│ │ └─ FrameTimer.cpp / .h
+│ └─ Shaders/
+│ ├─ ColorVS.hlsl
+│ ├─ ColorPS.hlsl
+│ ├─ PhongVS.hlsl
+│ └─ PhongPS.hlsl
+├─ DX12Editor.sln
+└─ README.md
 
- ├─ ImGui/                      # ImGui backend / sources
- 
- ├─ Resource Files/             # (icons, textures, etc.)
- 
- ├─ Header Files/
- 
- │   ├─ Camera.h
- 
- │   └─ DXMesh.h
- 
- │
- 
- ├─ Source Files/
- 
- │   └─ src/
- 
- │       ├─ App/
- 
- │       │   ├─ Main.cpp
- 
- │       │   ├─ Window.cpp
- 
- │       │   └─ Window.h
- 
- │       │
- 
- │       ├─ Core/
- 
- │       │   ├─ Camera.cpp
- 
- │       │   ├─ d3dx12.h
- 
- │       │   ├─ DXDevice.cpp
- 
- │       │   ├─ DXDevice.h
- 
- │       │   ├─ DXMesh.cpp
- 
- │       │   ├─ DXRenderer.cpp
- 
- │       │   ├─ DXRenderer.h
- 
- │       │   └─ FrameTimer.h/cpp
- 
- │       │
- 
- │       └─ Shaders/
- 
- │           ├─ ColorVS.hlsl
- 
- │           └─ ColorPS.hlsl
- 
+⚙️ Build Instructions
 
-⚙️ Technical Implementation Notes
+**Requirements**
+- Windows 10 / 11
+- Visual Studio 2022
+- Windows SDK
+- DirectX 12 capable GPU
+- x64 build configuration
 
-Textures and Mipmaps
+**Steps**
+1. Open `DX12Editor.sln`
+2. Select `Release | x64`
+3. Build the solution
+4. Run `DX12Editor.exe`
 
-    Procedural Generation: The checkerboard texture shown on the quad is generated procedurally in the shader/CPU code. No external image file (png, jpg, dds) is loaded.
-
-    Mipmaps: Because the texture is procedural, there is no offline mipmap generation. When bilinear filtering is selected (MIN_MAG_MIP_LINEAR), hardware mipmap filtering is enabled on the procedural pattern.
-
-Sampler System
-
-    The system uses a 16-byte–aligned CbMvp buffer including a uint samplerIndex.
-
-    Four static samplers are defined directly inside the root signature to handle the different filtering and wrapping modes requested in the assignment.
-
-Other
-
-    ImGui: Fully integrated with a dedicated SRV heap.
-
-    Coordinate System: Camera math uses the Left-Handed Coordinate System (DirectX Standard).
-
-🛠️ Build Instructions
-
-Requirements
-
-    Visual Studio 2022
-
-    Windows SDK
-
-    DirectX 12 capable GPU
-
-    x64 build configuration
-
-Steps to Run
-
-    Open the .sln file in Visual Studio.
-
-    Select Debug / x64 from the configuration manager.
-
-    Build the solution (Ctrl + Shift + B).
-
-    Run DX12Editor.exe.
-
-📸 Screenshots
-
-![LinearWrap](DX12Editor/screenshot_linear_wrap.png)
-![PointWrap](DX12Editor/screenshot_point_wrap.png)
-
-🔗 Project Repository
-
-GitHub: https://github.com/ISupertwister/OguzFurkanCelikFirstAssignment
+---
 
 👑 Author
 
-Oğuz Furkan Çelik 
-
-Advanced Programming for AAA Games 
-
+**Oğuz Furkan Çelik**  
+Advanced Programming for AAA Games  
 Universitat Politècnica de Catalunya (UPC)
