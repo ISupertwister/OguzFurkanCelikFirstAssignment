@@ -89,25 +89,45 @@ Implemented using **static samplers inside the root signature**.
 📁 Project Structure
 
 DX12Editor/
+
 ├─ ImGui/
+
 ├─ src/
+
 │ ├─ App/
+
 │ │ ├─ Main.cpp
+
 │ │ ├─ Window.cpp
+
 │ │ └─ Window.h
+
 │ ├─ Core/
+
 │ │ ├─ Camera.cpp / .h
+
 │ │ ├─ DXDevice.cpp / .h
+
 │ │ ├─ DXRenderer.cpp / .h
+
 │ │ ├─ RenderTarget.cpp / .h
+
 │ │ ├─ DXModelMesh.cpp / .h
+
 │ │ └─ FrameTimer.cpp / .h
+
 │ └─ Shaders/
+
 │ ├─ ColorVS.hlsl
+
 │ ├─ ColorPS.hlsl
+
 │ ├─ PhongVS.hlsl
+
 │ └─ PhongPS.hlsl
+
 ├─ DX12Editor.sln
+
 └─ README.md
 
 ⚙️ Build Instructions
