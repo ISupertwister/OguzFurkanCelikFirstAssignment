@@ -146,6 +146,7 @@ DX12Editor/
 4. Run `DX12Editor.exe`
 
 ---
+Github: https://github.com/ISupertwister/OguzFurkanCelikFirstAssignment/tree/Assignment2
 
 👑 Author
 
